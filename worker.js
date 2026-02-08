@@ -935,7 +935,7 @@ function getHomePage() {
   <div class="container">
     <div class="logo">🔥</div>
     <h1>مثلاً فیلتر نیست</h1>
-    <p class="subtitle">به هر سایتی دسترسی داشته باشید یا جستجو کنید - سریع و امن</p>
+    <p class="subtitle">به هر سایتی مثلا دسترسی داشته باشید یا جستجو کنید - سریع و امن</p>
     
     <form action="/" method="GET" id="proxyForm">
       <div class="input-wrapper">
@@ -945,7 +945,7 @@ function getHomePage() {
       <div class="hint">با <span>http://</span> یا <span>https://</span> برای سایت، بدون آن برای جستجو</div>
     </form>
     
-    <div class="divider"><span>داکیومنت‌های برنامه‌نویسی</span></div>
+    <div class="divider"><span>مثلا داکیومنت‌های برنامه‌نویسی</span></div>
     
     <div class="quick-links">
       <a href="/?url=https://developer.mozilla.org">
@@ -974,7 +974,7 @@ function getHomePage() {
       </a>
     </div>
     
-    <div class="divider"><span>سایت‌های محبوب</span></div>
+    <div class="divider"><span>مثلا سایت‌های محبوب</span></div>
     
     <div class="quick-links">
       <a href="/?url=wikipedia.org">
