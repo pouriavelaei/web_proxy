@@ -26,6 +26,15 @@ export default {
       });
     }
     
+    // چک کردن اگر URL دوبار encode شده (مثلاً از یک پراکسی دیگه)
+    // اگر خود URL یک پراکسیه، URL واقعی رو استخراج کن
+    if (targetUrl.includes(url.origin + '/?url=')) {
+      const match = targetUrl.match(/\?url=([^&]+)/);
+      if (match) {
+        targetUrl = decodeURIComponent(match[1]);
+      }
+    }
+    
     try {
       // اضافه کردن https اگر نداره
       if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
@@ -162,7 +171,13 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     try {
       if (!url || url.trim() === '' || url.startsWith('data:') || 
           url.startsWith('blob:') || url.startsWith('javascript:') || 
-          url.startsWith('about:') || url === '#' || url.startsWith('mailto:')) {
+          url.startsWith('about:') || url === '#' || url.startsWith('mailto:') ||
+          url.startsWith('tel:')) {
+        return url;
+      }
+      
+      // اگر قبلاً پراکسی شده، برگردون
+      if (url.includes(proxyOrigin + '/?url=')) {
         return url;
       }
       
@@ -177,20 +192,47 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
         // Query string - حفظ path فعلی
         const currentPath = baseUrl.pathname;
         absoluteUrl = targetBase + currentPath + url;
+      } else if (url.startsWith('#')) {
+        // Hash فقط - return as is
+        return url;
       } else {
         // Relative URL
         absoluteUrl = new URL(url, originalUrl).href;
       }
       
       return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
-    } catch {
+    } catch (e) {
+      console.warn('Failed to proxy URL:', url, e);
       return url;
     }
   };
   
-  // بازنویسی تمام attributeها
-  html = html.replace(/\b(href|src|action|data|poster)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
-    return `${attr}="${proxyUrl(url)}"`;
+  // بازنویسی تمام attributeها با دقت بیشتر
+  // href attribute
+  html = html.replace(/<a\s+([^>]*\s)?href\s*=\s*["']([^"']+)["']/gi, (match, before, url) => {
+    const proxied = proxyUrl(url);
+    return `<a ${before || ''}href="${proxied}"`;
+  });
+  
+  // src attribute
+  html = html.replace(/<(img|script|iframe|embed|source|video|audio)\s+([^>]*\s)?src\s*=\s*["']([^"']+)["']/gi, (match, tag, before, url) => {
+    const proxied = proxyUrl(url);
+    return `<${tag} ${before || ''}src="${proxied}"`;
+  });
+  
+  // action attribute برای فرم‌ها
+  html = html.replace(/<form\s+([^>]*\s)?action\s*=\s*["']([^"']+)["']/gi, (match, before, url) => {
+    const proxied = proxyUrl(url);
+    return `<form ${before || ''}action="${proxied}"`;
+  });
+  
+  // data و poster attributes
+  html = html.replace(/\b(data|poster)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
+    // فقط اگر شبیه URL بود
+    if (url.startsWith('http') || url.startsWith('/') || url.startsWith('//')) {
+      return `${attr}="${proxyUrl(url)}"`;
+    }
+    return match;
   });
   
   // بازنویسی srcset
@@ -211,12 +253,21 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     return `style="${newStyle}"`;
   });
   
+  // اضافه کردن base tag برای relative URLs (اگر نداره)
+  if (!html.match(/<base[^>]+>/i)) {
+    const baseTag = `<base href="${proxyOrigin}/?url=${encodeURIComponent(targetBase + '/')}">`;
+    if (html.match(/<head[^>]*>/i)) {
+      html = html.replace(/<head([^>]*)>/i, `<head$1>\n  ${baseTag}`);
+    }
+  }
+  
   // اضافه کردن اسکریپت proxy
   const script = `
   <script>
   (function() {
     const PROXY_ORIGIN = '${proxyOrigin}';
     const TARGET_BASE = '${targetBase}';
+    const CURRENT_URL = '${originalUrl}';
     
     // تابع کمکی برای پراکسی کردن URL
     function proxyUrl(url) {
@@ -225,7 +276,7 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
       // فیلتر کردن URLهای خاص
       if (url.startsWith('data:') || url.startsWith('blob:') || 
           url.startsWith('javascript:') || url.startsWith('about:') ||
-          url === '#' || url.startsWith('mailto:')) {
+          url === '#' || url.startsWith('mailto:') || url.startsWith('tel:')) {
         return url;
       }
       
@@ -238,35 +289,27 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
         let absoluteUrl;
         
         if (url.startsWith('http://') || url.startsWith('https://')) {
+          // URL کامل
           absoluteUrl = url;
         } else if (url.startsWith('//')) {
+          // Protocol-relative URL
           absoluteUrl = 'https:' + url;
         } else if (url.startsWith('/')) {
+          // Absolute path
           absoluteUrl = TARGET_BASE + url;
-        } else if (url.startsWith('?')) {
-          // Query string - حفظ path فعلی
-          const currentPath = window.location.search.match(/url=([^&]+)/);
-          if (currentPath) {
-            const decodedUrl = decodeURIComponent(currentPath[1]);
-            const urlObj = new URL(decodedUrl);
-            absoluteUrl = urlObj.origin + urlObj.pathname + url;
-          } else {
-            absoluteUrl = url;
-          }
+        } else if (url.startsWith('?') || url.startsWith('#')) {
+          // Query یا hash - نسبت به URL فعلی
+          absoluteUrl = CURRENT_URL.split('?')[0].split('#')[0] + url;
         } else {
-          // Relative URL - محاسبه نسبت به URL فعلی
-          const currentUrlParam = window.location.search.match(/url=([^&]+)/);
-          if (currentUrlParam) {
-            const currentUrl = decodeURIComponent(currentUrlParam[1]);
-            absoluteUrl = new URL(url, currentUrl).href;
-          } else {
-            absoluteUrl = url;
-          }
+          // Relative URL
+          const currentUrlObj = new URL(CURRENT_URL);
+          const basePath = currentUrlObj.pathname.substring(0, currentUrlObj.pathname.lastIndexOf('/') + 1);
+          absoluteUrl = currentUrlObj.origin + basePath + url;
         }
         
         return PROXY_ORIGIN + '/?url=' + encodeURIComponent(absoluteUrl);
       } catch (e) {
-        console.error('Error proxying URL:', url, e);
+        console.warn('Failed to proxy URL:', url, e);
         return url;
       }
     }
@@ -274,10 +317,14 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     // Override fetch
     const originalFetch = window.fetch;
     window.fetch = function(url, opts) {
-      if (typeof url === 'string') {
-        url = proxyUrl(url);
-      } else if (url && url.url) {
-        url.url = proxyUrl(url.url);
+      try {
+        if (typeof url === 'string') {
+          url = proxyUrl(url);
+        } else if (url && url.url) {
+          url.url = proxyUrl(url.url);
+        }
+      } catch (e) {
+        console.error('Fetch override error:', e);
       }
       return originalFetch(url, opts);
     };
@@ -286,8 +333,12 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     const XHR = XMLHttpRequest.prototype;
     const origOpen = XHR.open;
     XHR.open = function(method, url, ...args) {
-      if (typeof url === 'string') {
-        url = proxyUrl(url);
+      try {
+        if (typeof url === 'string') {
+          url = proxyUrl(url);
+        }
+      } catch (e) {
+        console.error('XHR override error:', e);
       }
       return origOpen.call(this, method, url, ...args);
     };
@@ -295,18 +346,26 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     // Override window.open
     const origWindowOpen = window.open;
     window.open = function(url, ...args) {
-      if (url && typeof url === 'string') {
-        url = proxyUrl(url);
+      try {
+        if (url && typeof url === 'string') {
+          url = proxyUrl(url);
+        }
+      } catch (e) {
+        console.error('window.open override error:', e);
       }
       return origWindowOpen.call(this, url, ...args);
     };
     
     // Override form submission
     document.addEventListener('submit', function(e) {
-      const form = e.target;
-      if (form && form.action) {
-        const newAction = proxyUrl(form.action);
-        form.setAttribute('action', newAction);
+      try {
+        const form = e.target;
+        if (form && form.action) {
+          const newAction = proxyUrl(form.action);
+          form.setAttribute('action', newAction);
+        }
+      } catch (e) {
+        console.error('Form submit override error:', e);
       }
     }, true);
     
@@ -315,29 +374,68 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     const origReplaceState = history.replaceState;
     
     history.pushState = function(state, title, url) {
-      if (url && typeof url === 'string') {
-        url = proxyUrl(url);
+      try {
+        if (url && typeof url === 'string' && !url.startsWith('#')) {
+          url = proxyUrl(url);
+        }
+      } catch (e) {
+        console.error('pushState override error:', e);
       }
       return origPushState.call(this, state, title, url);
     };
     
     history.replaceState = function(state, title, url) {
-      if (url && typeof url === 'string') {
-        url = proxyUrl(url);
+      try {
+        if (url && typeof url === 'string' && !url.startsWith('#')) {
+          url = proxyUrl(url);
+        }
+      } catch (e) {
+        console.error('replaceState override error:', e);
       }
       return origReplaceState.call(this, state, title, url);
     };
     
-    // Override location setters
-    const origLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
-    Object.defineProperty(window.Location.prototype, 'href', {
-      set: function(url) {
-        if (url && typeof url === 'string') {
-          url = proxyUrl(url);
+    // Override anchor clicks برای safety
+    document.addEventListener('click', function(e) {
+      try {
+        let target = e.target;
+        // پیدا کردن نزدیکترین anchor tag
+        while (target && target.tagName !== 'A') {
+          target = target.parentElement;
         }
-        return origLocationSetter.call(this, url);
+        
+        if (target && target.tagName === 'A') {
+          const href = target.getAttribute('href');
+          
+          // اگر href نداره یا special URL هست، بذار به حال خودش
+          if (!href || href === '#' || href.startsWith('javascript:') || 
+              href.startsWith('mailto:') || href.startsWith('tel:')) {
+            return;
+          }
+          
+          // اگر قبلاً پراکسی شده، بذار به حال خودش
+          if (href.includes(PROXY_ORIGIN + '/?url=')) {
+            return;
+          }
+          
+          // پراکسی کردن URL
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const proxiedUrl = proxyUrl(href);
+          
+          // چک کردن target attribute
+          if (target.target === '_blank' || target.target === '_new') {
+            window.open(proxiedUrl, target.target);
+          } else {
+            window.location.href = proxiedUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Click handler error:', err);
+        // اگر خطا داشت، بذار navigation عادی اتفاق بیفته
       }
-    });
+    }, true);
   })();
   </script>`;
   
