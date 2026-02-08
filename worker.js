@@ -929,6 +929,264 @@ function getHomePage() {
         height: 12px;
       }
     }
+    
+    /* Desktop Responsive Design */
+    @media (min-width: 769px) {
+      .container {
+        max-width: 650px;
+        padding: 60px 50px;
+        border-radius: 35px;
+      }
+      
+      .logo {
+        font-size: 4.5em;
+        margin-bottom: 20px;
+      }
+      
+      h1 {
+        font-size: 2.5em;
+        margin-bottom: 12px;
+      }
+      
+      .subtitle {
+        font-size: 16px;
+        margin-bottom: 40px;
+      }
+      
+      input[type="text"] {
+        padding: 20px 22px 20px 55px;
+        font-size: 17px;
+        border-radius: 16px;
+      }
+      
+      .input-wrapper::before {
+        left: 20px;
+        font-size: 20px;
+      }
+      
+      button {
+        padding: 20px 35px;
+        font-size: 18px;
+        border-radius: 16px;
+      }
+      
+      .hint {
+        font-size: 13px;
+        margin-top: 15px;
+      }
+      
+      .hint span {
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+      
+      .divider {
+        margin: 35px 0;
+        font-size: 14px;
+      }
+      
+      .quick-links {
+        gap: 12px;
+      }
+      
+      .quick-links a {
+        padding: 12px 20px;
+        font-size: 15px;
+        gap: 7px;
+      }
+      
+      .quick-links img {
+        width: 22px;
+        height: 22px;
+      }
+      
+      .footer {
+        margin-top: 40px;
+        padding-top: 25px;
+        font-size: 13px;
+      }
+      
+      .status {
+        font-size: 13px;
+      }
+      
+      .warning {
+        font-size: 12px;
+        padding: 10px 18px;
+        margin-top: 15px;
+      }
+      
+      .info-box {
+        font-size: 13px;
+        padding: 14px 18px;
+        margin-top: 18px;
+      }
+      
+      .creator-info {
+        font-size: 13px;
+        padding: 14px 18px;
+        margin-top: 18px;
+      }
+      
+      .creator-info strong {
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+      
+      .creator-links {
+        gap: 18px;
+      }
+      
+      .creator-links a {
+        padding: 7px 14px;
+        font-size: 12px;
+      }
+    }
+    
+    /* Large Desktop */
+    @media (min-width: 1200px) {
+      .container {
+        max-width: 750px;
+        padding: 70px 60px;
+        border-radius: 40px;
+      }
+      
+      .logo {
+        font-size: 5em;
+        margin-bottom: 25px;
+      }
+      
+      h1 {
+        font-size: 2.8em;
+        margin-bottom: 15px;
+      }
+      
+      .subtitle {
+        font-size: 18px;
+        margin-bottom: 45px;
+      }
+      
+      input[type="text"] {
+        padding: 22px 25px 22px 60px;
+        font-size: 18px;
+        border-radius: 18px;
+      }
+      
+      .input-wrapper::before {
+        left: 22px;
+        font-size: 22px;
+      }
+      
+      button {
+        padding: 22px 40px;
+        font-size: 19px;
+        border-radius: 18px;
+      }
+      
+      .hint {
+        font-size: 14px;
+        margin-top: 18px;
+      }
+      
+      .hint span {
+        padding: 5px 12px;
+        font-size: 13px;
+      }
+      
+      .divider {
+        margin: 40px 0;
+        font-size: 15px;
+      }
+      
+      .quick-links {
+        gap: 14px;
+      }
+      
+      .quick-links a {
+        padding: 13px 22px;
+        font-size: 16px;
+        gap: 8px;
+      }
+      
+      .quick-links img {
+        width: 24px;
+        height: 24px;
+      }
+      
+      .footer {
+        margin-top: 45px;
+        padding-top: 28px;
+        font-size: 14px;
+      }
+      
+      .status {
+        font-size: 14px;
+      }
+      
+      .warning {
+        font-size: 13px;
+        padding: 12px 20px;
+        margin-top: 18px;
+      }
+      
+      .info-box {
+        font-size: 14px;
+        padding: 16px 20px;
+        margin-top: 20px;
+      }
+      
+      .creator-info {
+        font-size: 14px;
+        padding: 16px 20px;
+        margin-top: 20px;
+      }
+      
+      .creator-info strong {
+        font-size: 15px;
+        margin-bottom: 12px;
+      }
+      
+      .creator-links {
+        gap: 20px;
+      }
+      
+      .creator-links a {
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+    }
+    
+    /* Ultra Wide Desktop */
+    @media (min-width: 1600px) {
+      .container {
+        max-width: 850px;
+        padding: 80px 70px;
+      }
+      
+      .logo {
+        font-size: 5.5em;
+      }
+      
+      h1 {
+        font-size: 3em;
+      }
+      
+      .subtitle {
+        font-size: 19px;
+      }
+      
+      input[type="text"] {
+        font-size: 19px;
+      }
+      
+      button {
+        font-size: 20px;
+      }
+      
+      .quick-links a {
+        font-size: 17px;
+      }
+    }
   </style>
 </head>
 <body>
