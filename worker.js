@@ -10,41 +10,14 @@ export default {
     }
     
     // صفحه اصلی
-    if (url.pathname === '/' && !url.searchParams.has('url') && !url.pathname.startsWith('/proxy/')) {
+    if (url.pathname === '/' && !url.searchParams.has('url')) {
       return new Response(getHomePage(), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
     
     // استخراج URL مقصد
-    let targetUrl = null;
-    let targetBase = null;
-    
-    // روش جدید: /proxy/ENCODED_URL/path
-    if (url.pathname.startsWith('/proxy/')) {
-      const pathParts = url.pathname.slice(7); // حذف /proxy/
-      const firstSlash = pathParts.indexOf('/');
-      
-      if (firstSlash > 0) {
-        targetBase = decodeURIComponent(pathParts.slice(0, firstSlash));
-        const restPath = pathParts.slice(firstSlash);
-        targetUrl = targetBase + restPath + url.search;
-      } else if (pathParts) {
-        targetBase = decodeURIComponent(pathParts);
-        targetUrl = targetBase + url.search;
-      }
-    }
-    
-    // روش قدیمی: ?url=...
-    if (!targetUrl) {
-      targetUrl = url.searchParams.get('url');
-      if (targetUrl) {
-        try {
-          const parsed = new URL(targetUrl);
-          targetBase = parsed.origin;
-        } catch (e) {}
-      }
-    }
+    let targetUrl = url.searchParams.get('url');
     
     if (!targetUrl) {
       return new Response(getErrorPage('لطفا URL را وارد کنید'), { 
@@ -60,11 +33,7 @@ export default {
       }
       
       const targetUrlObj = new URL(targetUrl);
-      
-      // اگر targetBase نداشتیم، از URL اصلی استخراج می‌کنیم
-      if (!targetBase) {
-        targetBase = targetUrlObj.origin;
-      }
+      const targetBase = targetUrlObj.origin;
       
       // ساخت هدرها
       const proxyHeaders = new Headers();
@@ -188,7 +157,6 @@ function handleOptions() {
 // بازنویسی HTML
 function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
   const baseUrl = new URL(originalUrl);
-  const encodedBase = encodeURIComponent(targetBase);
   
   const proxyUrl = (url) => {
     try {
@@ -200,20 +168,21 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
       
       let absoluteUrl;
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        const urlObj = new URL(url);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+        absoluteUrl = url;
       } else if (url.startsWith('//')) {
-        const urlObj = new URL('https:' + url);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+        absoluteUrl = 'https:' + url;
       } else if (url.startsWith('/')) {
-        return `${proxyOrigin}/proxy/${encodedBase}${url}`;
+        absoluteUrl = targetBase + url;
       } else if (url.startsWith('?')) {
-        const currentPath = new URL(originalUrl).pathname;
-        return `${proxyOrigin}/proxy/${encodedBase}${currentPath}${url}`;
+        // Query string - حفظ path فعلی
+        const currentPath = baseUrl.pathname;
+        absoluteUrl = targetBase + currentPath + url;
       } else {
-        absoluteUrl = new URL(url, originalUrl);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(absoluteUrl.origin)}${absoluteUrl.pathname}${absoluteUrl.search}${absoluteUrl.hash}`;
+        // Relative URL
+        absoluteUrl = new URL(url, originalUrl).href;
       }
+      
+      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
     } catch {
       return url;
     }
@@ -242,43 +211,62 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     return `style="${newStyle}"`;
   });
   
-  // اضافه کردن base tag برای navigation
-  const baseTag = `<base href="${proxyOrigin}/proxy/${encodedBase}/">`;
-  if (html.match(/<head[^>]*>/i)) {
-    html = html.replace(/<head([^>]*)>/i, `<head$1>\n${baseTag}`);
-  }
-  
   // اضافه کردن اسکریپت proxy
   const script = `
   <script>
   (function() {
-    const PROXY = '${proxyOrigin}';
-    const BASE = '${targetBase}';
-    const ENCODED_BASE = '${encodedBase}';
+    const PROXY_ORIGIN = '${proxyOrigin}';
+    const TARGET_BASE = '${targetBase}';
     
     // تابع کمکی برای پراکسی کردن URL
     function proxyUrl(url) {
-      if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) {
+      if (!url || typeof url !== 'string') return url;
+      
+      // فیلتر کردن URLهای خاص
+      if (url.startsWith('data:') || url.startsWith('blob:') || 
+          url.startsWith('javascript:') || url.startsWith('about:') ||
+          url === '#' || url.startsWith('mailto:')) {
+        return url;
+      }
+      
+      // اگر قبلاً پراکسی شده، برگردون
+      if (url.includes(PROXY_ORIGIN + '/?url=')) {
         return url;
       }
       
       try {
+        let absoluteUrl;
+        
         if (url.startsWith('http://') || url.startsWith('https://')) {
-          const u = new URL(url);
-          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+          absoluteUrl = url;
         } else if (url.startsWith('//')) {
-          const u = new URL('https:' + url);
-          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+          absoluteUrl = 'https:' + url;
         } else if (url.startsWith('/')) {
-          return PROXY + '/proxy/' + ENCODED_BASE + url;
+          absoluteUrl = TARGET_BASE + url;
         } else if (url.startsWith('?')) {
-          return PROXY + '/proxy/' + ENCODED_BASE + window.location.pathname.replace(/^\/proxy\/[^\/]+/, '') + url;
+          // Query string - حفظ path فعلی
+          const currentPath = window.location.search.match(/url=([^&]+)/);
+          if (currentPath) {
+            const decodedUrl = decodeURIComponent(currentPath[1]);
+            const urlObj = new URL(decodedUrl);
+            absoluteUrl = urlObj.origin + urlObj.pathname + url;
+          } else {
+            absoluteUrl = url;
+          }
         } else {
-          const currentUrl = BASE + window.location.pathname.replace(/^\/proxy\/[^\/]+/, '');
-          const u = new URL(url, currentUrl);
-          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+          // Relative URL - محاسبه نسبت به URL فعلی
+          const currentUrlParam = window.location.search.match(/url=([^&]+)/);
+          if (currentUrlParam) {
+            const currentUrl = decodeURIComponent(currentUrlParam[1]);
+            absoluteUrl = new URL(url, currentUrl).href;
+          } else {
+            absoluteUrl = url;
+          }
         }
+        
+        return PROXY_ORIGIN + '/?url=' + encodeURIComponent(absoluteUrl);
       } catch (e) {
+        console.error('Error proxying URL:', url, e);
         return url;
       }
     }
@@ -286,7 +274,11 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     // Override fetch
     const originalFetch = window.fetch;
     window.fetch = function(url, opts) {
-      url = proxyUrl(url);
+      if (typeof url === 'string') {
+        url = proxyUrl(url);
+      } else if (url && url.url) {
+        url.url = proxyUrl(url.url);
+      }
       return originalFetch(url, opts);
     };
     
@@ -294,39 +286,58 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
     const XHR = XMLHttpRequest.prototype;
     const origOpen = XHR.open;
     XHR.open = function(method, url, ...args) {
-      url = proxyUrl(url);
+      if (typeof url === 'string') {
+        url = proxyUrl(url);
+      }
       return origOpen.call(this, method, url, ...args);
     };
     
     // Override window.open
     const origWindowOpen = window.open;
     window.open = function(url, ...args) {
-      if (url) url = proxyUrl(url);
+      if (url && typeof url === 'string') {
+        url = proxyUrl(url);
+      }
       return origWindowOpen.call(this, url, ...args);
     };
     
     // Override form submission
     document.addEventListener('submit', function(e) {
       const form = e.target;
-      if (form.action) {
+      if (form && form.action) {
         const newAction = proxyUrl(form.action);
         form.setAttribute('action', newAction);
       }
     }, true);
     
-    // Override pushState و replaceState
+    // Override history API
     const origPushState = history.pushState;
     const origReplaceState = history.replaceState;
     
     history.pushState = function(state, title, url) {
-      if (url) url = proxyUrl(url);
+      if (url && typeof url === 'string') {
+        url = proxyUrl(url);
+      }
       return origPushState.call(this, state, title, url);
     };
     
     history.replaceState = function(state, title, url) {
-      if (url) url = proxyUrl(url);
+      if (url && typeof url === 'string') {
+        url = proxyUrl(url);
+      }
       return origReplaceState.call(this, state, title, url);
     };
+    
+    // Override location setters
+    const origLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
+    Object.defineProperty(window.Location.prototype, 'href', {
+      set: function(url) {
+        if (url && typeof url === 'string') {
+          url = proxyUrl(url);
+        }
+        return origLocationSetter.call(this, url);
+      }
+    });
   })();
   </script>`;
   
@@ -344,7 +355,6 @@ function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
 // بازنویسی CSS  
 function rewriteCSS(css, originalUrl, proxyOrigin, targetBase) {
   const baseUrl = new URL(originalUrl);
-  const encodedBase = encodeURIComponent(targetBase);
   
   const proxyUrl = (url) => {
     try {
@@ -353,19 +363,19 @@ function rewriteCSS(css, originalUrl, proxyOrigin, targetBase) {
       }
       
       url = url.trim();
+      let absoluteUrl;
       
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        const urlObj = new URL(url);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+        absoluteUrl = url;
       } else if (url.startsWith('//')) {
-        const urlObj = new URL('https:' + url);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
+        absoluteUrl = 'https:' + url;
       } else if (url.startsWith('/')) {
-        return `${proxyOrigin}/proxy/${encodedBase}${url}`;
+        absoluteUrl = targetBase + url;
       } else {
-        const absoluteUrl = new URL(url, originalUrl);
-        return `${proxyOrigin}/proxy/${encodeURIComponent(absoluteUrl.origin)}${absoluteUrl.pathname}${absoluteUrl.search}${absoluteUrl.hash}`;
+        absoluteUrl = new URL(url, originalUrl).href;
       }
+      
+      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
     } catch {
       return url;
     }
@@ -646,12 +656,12 @@ function getHomePage() {
     <div class="quick-links">
       <h3>دسترسی سریع:</h3>
       <div class="links">
-        <a href="/proxy/https%3A%2F%2Fwww.youtube.com/" class="link-btn">🎬 YouTube</a>
-        <a href="/proxy/https%3A%2F%2Ftwitter.com/" class="link-btn">🐦 Twitter</a>
-        <a href="/proxy/https%3A%2F%2Fwww.instagram.com/" class="link-btn">📸 Instagram</a>
-        <a href="/proxy/https%3A%2F%2Fwww.facebook.com/" class="link-btn">👥 Facebook</a>
-        <a href="/proxy/https%3A%2F%2Fwww.reddit.com/" class="link-btn">🔥 Reddit</a>
-        <a href="/proxy/https%3A%2F%2Fwikipedia.org/" class="link-btn">📚 Wikipedia</a>
+        <a href="/?url=https://www.youtube.com" class="link-btn">🎬 YouTube</a>
+        <a href="/?url=https://twitter.com" class="link-btn">🐦 Twitter</a>
+        <a href="/?url=https://www.instagram.com" class="link-btn">📸 Instagram</a>
+        <a href="/?url=https://www.facebook.com" class="link-btn">👥 Facebook</a>
+        <a href="/?url=https://www.reddit.com" class="link-btn">🔥 Reddit</a>
+        <a href="/?url=https://wikipedia.org" class="link-btn">📚 Wikipedia</a>
       </div>
     </div>
     
@@ -670,25 +680,23 @@ function getHomePage() {
     // Focus on input field when page loads
     document.querySelector('input[name="url"]').focus();
     
-    // Handle form submission
+    // Form already submits with GET method to /?url=...
+    // So we just need to make sure the URL is properly formatted
     document.querySelector('form').addEventListener('submit', function(e) {
-      e.preventDefault();
       let url = document.querySelector('input[name="url"]').value.trim();
       
-      if (!url) return;
+      if (!url) {
+        e.preventDefault();
+        return;
+      }
       
       // اضافه کردن https اگر نداره
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        e.preventDefault();
         url = 'https://' + url;
+        window.location.href = '/?url=' + encodeURIComponent(url);
       }
-      
-      try {
-        const urlObj = new URL(url);
-        const encodedOrigin = encodeURIComponent(urlObj.origin);
-        window.location.href = '/proxy/' + encodedOrigin + urlObj.pathname + urlObj.search + urlObj.hash;
-      } catch (e) {
-        alert('لطفا یک آدرس معتبر وارد کنید');
-      }
+      // اگر URL درست بود، form رو بذار submit بشه
     });
   </script>
 </body>
