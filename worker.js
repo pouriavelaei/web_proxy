@@ -1238,7 +1238,7 @@ function getHomePage() {
         <img src="https://go.dev/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🔷%3C/text%3E%3C/svg%3E'">Go Docs
       </a>
       <a href="/?url=https://docs.rust-lang.org">
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='18' font-size='18'%3E🦀%3C/text%3E%3C/svg%3E" alt="">Rust Docs
+        <img src="https://rust-lang.org/static/images/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🦀%3C/text%3E%3C/svg%3E'">Rust Docs
       </a>
       <a href="/?url=https://vuejs.org/guide">
         <img src="https://vuejs.org/logo.svg" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E💚%3C/text%3E%3C/svg%3E'">Vue.js Docs
