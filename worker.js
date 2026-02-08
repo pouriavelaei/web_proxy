@@ -36,23 +36,58 @@ export default {
     try {
       const target = new URL(targetUrl);
       
+      // لیست User-Agent های مختلف برای تنوع
+      const userAgents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15"
+      ];
+      
       // ساخت هدرهای واقعی‌تر
       const headers = new Headers();
-      const userAgent = request.headers.get("User-Agent") || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
+      
+      // استفاده از User-Agent کاربر یا انتخاب تصادفی
+      const clientUA = request.headers.get("User-Agent");
+      const userAgent = clientUA && clientUA.includes("Mozilla") ? clientUA : userAgents[Math.floor(Math.random() * userAgents.length)];
+      const isFirefox = userAgent.includes("Firefox");
+      const isSafari = userAgent.includes("Safari") && !userAgent.includes("Chrome");
+      
+      headers.set("Host", target.host);
       headers.set("User-Agent", userAgent);
       headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
-      headers.set("Accept-Language", "en-US,en;q=0.9,fa;q=0.8");
+      headers.set("Accept-Language", "en-US,en;q=0.9");
       headers.set("Accept-Encoding", "gzip, deflate, br");
-      headers.set("Cache-Control", "no-cache");
-      headers.set("Pragma", "no-cache");
-      headers.set("Sec-Ch-Ua", '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"');
-      headers.set("Sec-Ch-Ua-Mobile", "?0");
-      headers.set("Sec-Ch-Ua-Platform", '"Windows"');
+      headers.set("Referer", target.origin + "/");
+      headers.set("Origin", target.origin);
+      
+      // هدرهای مخصوص Chrome
+      if (!isFirefox && !isSafari) {
+        headers.set("Sec-Ch-Ua", '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"');
+        headers.set("Sec-Ch-Ua-Mobile", "?0");
+        headers.set("Sec-Ch-Ua-Platform", '"Windows"');
+      }
+      
       headers.set("Sec-Fetch-Dest", "document");
       headers.set("Sec-Fetch-Mode", "navigate");
-      headers.set("Sec-Fetch-Site", "none");
+      headers.set("Sec-Fetch-Site", "same-origin");
       headers.set("Sec-Fetch-User", "?1");
       headers.set("Upgrade-Insecure-Requests", "1");
+      headers.set("Connection", "keep-alive");
+      
+      // فوروارد کوکی‌های درخواست
+      const cookies = request.headers.get("Cookie");
+      if (cookies) {
+        headers.set("Cookie", cookies);
+      }
+      
+      // فوروارد Content-Type برای POST
+      if (request.method === "POST" || request.method === "PUT") {
+        const contentType = request.headers.get("Content-Type");
+        if (contentType) {
+          headers.set("Content-Type", contentType);
+        }
+      }
       
       // درخواست به سایت مقصد
       const response = await fetch(target.toString(), {
@@ -87,8 +122,24 @@ export default {
         newHeaders.delete("content-encoding");
         newHeaders.delete("content-length");
         newHeaders.delete("content-security-policy");
+        newHeaders.delete("content-security-policy-report-only");
         newHeaders.delete("x-frame-options");
+        newHeaders.delete("strict-transport-security");
         newHeaders.set("Access-Control-Allow-Origin", "*");
+        newHeaders.set("Access-Control-Allow-Credentials", "true");
+        
+        // فوروارد کوکی‌ها با تغییر domain
+        const setCookies = response.headers.getAll ? response.headers.getAll("set-cookie") : [response.headers.get("set-cookie")].filter(Boolean);
+        if (setCookies.length > 0) {
+          setCookies.forEach(cookie => {
+            // حذف domain و secure برای کار کردن در پراکسی
+            let modifiedCookie = cookie
+              .replace(/;\s*domain=[^;]*/gi, '')
+              .replace(/;\s*secure/gi, '')
+              .replace(/;\s*samesite=[^;]*/gi, '; SameSite=Lax');
+            newHeaders.append("Set-Cookie", modifiedCookie);
+          });
+        }
         
         return new Response(html, {
           status: response.status,
