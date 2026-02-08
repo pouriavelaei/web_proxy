@@ -46,25 +46,39 @@ export default {
       
       if (pathUrl.startsWith("http://") || pathUrl.startsWith("https://")) {
         targetUrl = pathUrl;
-      } else if (pathUrl.length > 0 && pathUrl.includes(".")) {
-        targetUrl = "https://" + pathUrl;
       } else {
-        // اگر مسیر نسبی است، سعی می‌کنیم از Referer استفاده کنیم
+        // مسیر نسبی است - باید از Referer استفاده کنیم
         const referer = request.headers.get("Referer");
         
         if (referer && referer.includes(proxyOrigin)) {
           try {
-            // استخراج سایت مقصد از referer
-            // مثال: https://proxy.com/https://www.youtube.com/watch
-            const refMatch = referer.match(/https?:\/\/[^/]+\/+(https?:\/\/[^/?#]+)/);
-            if (refMatch && refMatch[1]) {
-              const refTargetOrigin = refMatch[1];
-              targetUrl = refTargetOrigin + url.pathname + url.search;
+            // استخراج کامل URL از referer
+            // مثال: https://proxy.com/https://www.youtube.com/watch -> https://www.youtube.com/watch
+            const refPath = new URL(referer).pathname.slice(1);
+            let refTargetUrl;
+            
+            if (refPath.startsWith("http://") || refPath.startsWith("https://")) {
+              refTargetUrl = refPath;
             } else {
+              // اگر referer هم مسیر نسبی داره، نمیتونیم resolve کنیم
               return new Response(getHomePage(), {
                 headers: { "Content-Type": "text/html; charset=utf-8" },
               });
             }
+            
+            // حالا pathUrl رو نسبت به refTargetUrl resolve میکنیم
+            const refTargetObj = new URL(refTargetUrl);
+            
+            if (pathUrl.startsWith("/")) {
+              // مسیر مطلق - فقط origin را استفاده کن
+              targetUrl = refTargetObj.origin + pathUrl;
+            } else {
+              // مسیر نسبی - نسبت به URL فعلی
+              const refTargetPath = refTargetObj.pathname;
+              const refTargetDir = refTargetPath.substring(0, refTargetPath.lastIndexOf('/') + 1);
+              targetUrl = refTargetObj.origin + refTargetDir + pathUrl;
+            }
+            
           } catch (e) {
             return new Response(getHomePage(), {
               headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -1002,15 +1016,22 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     const currentSearch = window.location.search;
     const currentHash = window.location.hash;
     
-    // حذف اسلش‌های اضافی از اول
-    const cleanPath = currentPath.replace(/^\\/+/, '');
+    // حذف اسلش اول
+    let cleanPath = currentPath.slice(1);
+    
+    // decode کردن در صورت نیاز
+    try {
+      if (cleanPath.includes('%')) {
+        cleanPath = decodeURIComponent(cleanPath);
+      }
+    } catch (e) {}
     
     // اگر با http شروع می‌شود، URL کامل است
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       return cleanPath + currentSearch + currentHash;
     }
     
-    // در غیر این صورت، باید نسبت به targetOrigin باشد
+    // در غیر این صورت، مسیر نسبی است
     return targetOrigin + '/' + cleanPath + currentSearch + currentHash;
   }
   
@@ -1019,6 +1040,11 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     if (!url || typeof url !== 'string') return url;
     
     url = url.trim();
+    
+    // URL های خاص که نباید تغییر کنند
+    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('data:') || url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('blob:')) {
+      return url;
+    }
     
     // اگر URL با پراکسی شروع می‌شود، بدون تغییر برگردان
     if (url.startsWith(proxyOrigin)) return url;
@@ -1038,25 +1064,17 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
       return proxyOrigin + '/' + targetOrigin + url;
     }
     
-    // URL های خاص که نباید تغییر کنند
-    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('data:') || url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('blob:')) {
-      return url;
-    }
-    
     // مسیرهای نسبی (بدون /) - باید نسبت به URL فعلی حل شوند
-    if (url.length > 0 && !url.includes(':')) {
-      try {
-        const realCurrentUrl = getRealCurrentUrl();
-        const currentUrl = new URL(realCurrentUrl);
-        const resolvedUrl = new URL(url, currentUrl.href);
-        return proxyOrigin + '/' + resolvedUrl.toString();
-      } catch (e) {
-        // در صورت خطا، به روش قدیمی
-        return proxyOrigin + '/' + targetOrigin + '/' + url;
-      }
+    try {
+      const realCurrentUrl = getRealCurrentUrl();
+      const currentUrlObj = new URL(realCurrentUrl);
+      const resolvedUrl = new URL(url, currentUrlObj.href);
+      return proxyOrigin + '/' + resolvedUrl.toString();
+    } catch (e) {
+      console.warn('Failed to resolve relative URL:', url, e);
+      // در صورت خطا، سعی کن به صورت ساده حل کن
+      return proxyOrigin + '/' + targetOrigin + '/' + url;
     }
-    
-    return url;
   }
   
   // بازنویسی fetch
