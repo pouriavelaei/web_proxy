@@ -23,7 +23,34 @@ export default {
       targetUrl = url.searchParams.get("url").trim();
     } else {
       // مسیر به صورت /https://example.com/path
-      const pathUrl = decodeURIComponent(url.pathname.slice(1)) + url.search;
+      // decode کردن کامل pathname و search به صورت جداگانه
+      let pathUrl = url.pathname.slice(1);
+      
+      // decode کردن pathname
+      if (pathUrl.includes('%')) {
+        try {
+          // decode کردن چند مرحله‌ای برای مواقعی که double-encoded است
+          let decoded = decodeURIComponent(pathUrl);
+          // چک کنیم اگر هنوز % دارد، یک بار دیگر decode کن
+          if (decoded.includes('%')) {
+            try {
+              decoded = decodeURIComponent(decoded);
+            } catch (e) {
+              // اگر نشد، همان decoded اول را نگه دار
+            }
+          }
+          pathUrl = decoded;
+        } catch (e) {
+          // اگر decode نشد، همان را استفاده کن
+          pathUrl = url.pathname.slice(1);
+        }
+      }
+      
+      // اضافه کردن search (که خودش decode نشده است)
+      if (url.search) {
+        pathUrl += url.search;
+      }
+      
       if (pathUrl.startsWith("http://") || pathUrl.startsWith("https://")) {
         targetUrl = pathUrl;
       } else if (pathUrl.length > 0 && pathUrl.includes(".")) {
@@ -31,10 +58,12 @@ export default {
       } else {
         // اگر مسیر نسبی است، سعی می‌کنیم از Referer استفاده کنیم
         const referer = request.headers.get("Referer");
+        
         if (referer && referer.includes(proxyOrigin)) {
           try {
             // استخراج سایت مقصد از referer
-            const refMatch = referer.match(/https?:\/\/[^/]+\/+(https?:\/\/[^/]+)/);
+            // مثال: https://proxy.com/https://www.youtube.com/watch
+            const refMatch = referer.match(/https?:\/\/[^/]+\/+(https?:\/\/[^/?#]+)/);
             if (refMatch && refMatch[1]) {
               const refTargetOrigin = refMatch[1];
               targetUrl = refTargetOrigin + url.pathname + url.search;
@@ -208,10 +237,16 @@ export default {
               // پروتکل نسبی
               absoluteLocation = target.protocol + location;
             } else if (location.startsWith('/')) {
-              // مسیر مطلق
+              // مسیر مطلق - باید نسبت به target origin حل شود
               absoluteLocation = target.origin + location;
+            } else if (location.startsWith('?')) {
+              // Query string فقط - به pathname فعلی اضافه می‌شود
+              absoluteLocation = target.origin + target.pathname + location;
+            } else if (location.startsWith('#')) {
+              // Fragment فقط
+              absoluteLocation = target.origin + target.pathname + target.search + location;
             } else {
-              // مسیر نسبی
+              // مسیر نسبی - باید نسبت به pathname فعلی حل شود
               const targetPath = target.pathname.substring(0, target.pathname.lastIndexOf('/') + 1);
               absoluteLocation = target.origin + targetPath + location;
             }
@@ -1067,44 +1102,80 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     return originalWindowOpen.call(this, url, ...args);
   };
   
-  // مدیریت window.location
+  // مدیریت window.location - override کامل
   const originalLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
   Object.defineProperty(window.Location.prototype, 'href', {
     set: function(url) {
-      // اگر URL مسیری نسبی است، باید نسبت به سایت واقعی حل شود
-      if (url && typeof url === 'string' && !url.startsWith('http') && !url.startsWith(proxyOrigin)) {
-        url = rewriteUrl(url);
-      } else if (url && typeof url === 'string' && url.startsWith('http') && !url.startsWith(proxyOrigin)) {
-        url = proxyOrigin + '/' + url;
+      if (url && typeof url === 'string') {
+        if (url.startsWith('/') && !url.startsWith('//' + proxyOrigin)) {
+          url = proxyOrigin + '/' + targetOrigin + url;
+        } else if (!url.startsWith('http') && !url.startsWith(proxyOrigin) && !url.startsWith('#') && !url.startsWith('javascript:')) {
+          url = rewriteUrl(url);
+        } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+          url = proxyOrigin + '/' + url;
+        }
       }
       return originalLocationSetter.call(this, url);
+    },
+    get: function() {
+      return originalLocationSetter.call(this);
     }
   });
   
   // مدیریت location.assign و location.replace
   const originalLocationAssign = window.Location.prototype.assign;
   window.Location.prototype.assign = function(url) {
-    return originalLocationAssign.call(this, rewriteUrl(url));
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalLocationAssign.call(this, url);
   };
   
   const originalLocationReplace = window.Location.prototype.replace;
   window.Location.prototype.replace = function(url) {
-    return originalLocationReplace.call(this, rewriteUrl(url));
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalLocationReplace.call(this, url);
   };
   
   // مدیریت history.pushState و history.replaceState
   const originalPushState = window.History.prototype.pushState;
   window.History.prototype.pushState = function(state, title, url) {
-    if (url) {
-      url = rewriteUrl(url);
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
     }
     return originalPushState.call(this, state, title, url);
   };
   
   const originalReplaceState = window.History.prototype.replaceState;
   window.History.prototype.replaceState = function(state, title, url) {
-    if (url) {
-      url = rewriteUrl(url);
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
     }
     return originalReplaceState.call(this, state, title, url);
   };
@@ -1208,52 +1279,48 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   });
   
   // اصلاح base href اگر وجود دارد
-  const existingBase = document.querySelector('base');
-  if (existingBase) {
-    const baseHref = existingBase.getAttribute('href');
-    if (baseHref && !baseHref.startsWith(proxyOrigin)) {
-      existingBase.setAttribute('href', rewriteUrl(baseHref));
+  function ensureCorrectBase() {
+    const existingBase = document.querySelector('base');
+    const correctBaseHref = proxyOrigin + '/' + targetOrigin + '/';
+    
+    if (existingBase) {
+      const currentHref = existingBase.getAttribute('href');
+      if (currentHref !== correctBaseHref) {
+        existingBase.setAttribute('href', correctBaseHref);
+      }
+    } else {
+      // اگر base وجود ندارد، اضافه کن
+      const newBase = document.createElement('base');
+      newBase.href = correctBaseHref;
+      document.head.insertBefore(newBase, document.head.firstChild);
     }
   }
   
-  // مکانیزم امنیتی: چک کردن URL و تصحیح در صورت اشتباه
-  let lastCheckedUrl = window.location.href;
-  let correctionAttempts = 0;
-  const maxCorrectionAttempts = 3;
+  // اجرای اولیه
+  ensureCorrectBase();
   
-  const urlChecker = setInterval(function() {
-    const currentUrl = window.location.href;
-    
-    // اگر URL تغییر کرده
-    if (currentUrl !== lastCheckedUrl) {
-      lastCheckedUrl = currentUrl;
-      correctionAttempts = 0; // ریست کردن تلاش‌ها
+  // چک کردن مداوم base tag (یوتیوب ممکن است آن را تغییر دهد)
+  setInterval(ensureCorrectBase, 500);
+  
+  // Navigation interceptor - جلوگیری از ناوبری اشتباه
+  if (window.navigation) {
+    window.navigation.addEventListener('navigate', function(e) {
+      const destination = e.destination.url;
       
-      // چک کنیم که آیا به درستی با پراکسی شروع می‌شود
-      if (currentUrl.startsWith(proxyOrigin + '/')) {
-        const pathPart = currentUrl.substring(proxyOrigin.length + 1);
+      // اگر به URL نسبی می‌رود که با پراکسی شروع نمی‌شود
+      if (destination && !destination.startsWith(proxyOrigin + '/http')) {
+        const destinationUrl = new URL(destination);
+        const path = destinationUrl.pathname;
         
-        // اگر pathPart از با http شروع نمی‌شود، یعنی مشکل داریم
-        // مثلا: /results?search_query=test بجای /https://www.youtube.com/results
-        if (pathPart && !pathPart.startsWith('http://') && !pathPart.startsWith('https://')) {
-          // استثناها: مسیرهای خاص پراکسی
-          if (pathPart.startsWith('search?') || pathPart === '') {
-            return; // این مسیرهای معتبر پراکسی هستند
-          }
-          
-          if (correctionAttempts < maxCorrectionAttempts) {
-            correctionAttempts++;
-            const correctUrl = proxyOrigin + '/' + targetOrigin + '/' + pathPart;
-            console.warn('[Proxy] Correcting URL:', currentUrl, '->', correctUrl);
-            window.location.replace(correctUrl);
-          } else {
-            // بعد از 3 تلاش، متوقف می‌کنیم
-            clearInterval(urlChecker);
-          }
+        // اگر مسیر نسبی است و نباید به صفحه اصلی برود
+        if (path && path !== '/' && !path.startsWith('/http')) {
+          e.preventDefault();
+          const correctedUrl = proxyOrigin + '/' + targetOrigin + path + destinationUrl.search + destinationUrl.hash;
+          window.location.href = correctedUrl;
         }
       }
-    }
-  }, 150);
+    });
+  }
 })();
 </script>`;
   
