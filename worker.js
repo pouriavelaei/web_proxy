@@ -994,17 +994,17 @@ function getHomePage() {
     <div class="footer">
       <div class="status">
         <span class="status-dot"></span>
-        سرور فعال است
+        مثلا سرور فعال است
       </div>
       <div class="warning">
         ⚠️ طراحی شده برای درخواست‌های سبک وب — نه استریم ویدیو (مثل YouTube)
       </div>
       <div class="info-box">
-        <strong>💡 نکته:</strong>
+        <strong>💡 مثلا نکته:</strong>
         برای جستجو از تایپ بدون http/https استفاده کنید. بعضی سایت‌ها ممکن است CAPTCHA یا محدودیت داشته باشند.
       </div>
       <div class="creator-info">
-        <strong>👨‍💻 ساخته شده توسط:</strong>
+        <strong>👨‍💻 مثلا ساخته شده توسط:</strong>
         <div class="creator-links">
           <a href="/?url=https://github.com/pouriavelaei" target="_blank">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
