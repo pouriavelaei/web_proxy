@@ -1220,28 +1220,28 @@ function getHomePage() {
     
     <div class="quick-links">
       <a href="/?url=https://developer.mozilla.org">
-        <img src="https://developer.mozilla.org/favicon.ico" alt="">MDN Web Docs
+        <img src="https://developer.mozilla.org/favicon-48x48.cbbd161b.png" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E📘%3C/text%3E%3C/svg%3E'">MDN Web Docs
       </a>
       <a href="/?url=https://docs.python.org">
-        <img src="https://www.python.org/favicon.ico" alt="">Python Docs
+        <img src="https://docs.python.org/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🐍%3C/text%3E%3C/svg%3E'">Python Docs
       </a>
       <a href="/?url=https://nodejs.org/docs">
-        <img src="https://nodejs.org/favicon.ico" alt="">Node.js Docs
+        <img src="https://nodejs.org/static/images/favicons/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E💚%3C/text%3E%3C/svg%3E'">Node.js Docs
       </a>
       <a href="/?url=https://react.dev">
-        <img src="https://react.dev/favicon.ico" alt="">React Docs
+        <img src="https://react.dev/favicon-32x32.png" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E⚛️%3C/text%3E%3C/svg%3E'">React Docs
       </a>
       <a href="/?url=https://www.php.net/docs.php">
-        <img src="https://www.php.net/favicon.ico" alt="">PHP Docs
+        <img src="https://www.php.net/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🐘%3C/text%3E%3C/svg%3E'">PHP Docs
       </a>
       <a href="/?url=https://go.dev/doc">
-        <img src="https://go.dev/favicon.ico" alt="">Go Docs
+        <img src="https://go.dev/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🔷%3C/text%3E%3C/svg%3E'">Go Docs
       </a>
       <a href="/?url=https://docs.rust-lang.org">
-        <img src="https://www.rust-lang.org/favicon.ico" alt="">Rust Docs
+        <img src="https://www.rust-lang.org/static/images/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E🦀%3C/text%3E%3C/svg%3E'">Rust Docs
       </a>
       <a href="/?url=https://vuejs.org/guide">
-        <img src="https://vuejs.org/logo.svg" alt="">Vue.js Docs
+        <img src="https://vuejs.org/logo.svg" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E💚%3C/text%3E%3C/svg%3E'">Vue.js Docs
       </a>
     </div>
     
@@ -1249,16 +1249,16 @@ function getHomePage() {
     
     <div class="quick-links">
       <a href="/?url=wikipedia.org">
-        <img src="https://www.wikipedia.org/favicon.ico" alt="">Wikipedia
+        <img src="https://www.wikipedia.org/static/favicon/wikipedia.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E📖%3C/text%3E%3C/svg%3E'">Wikipedia
       </a>
       <a href="/?url=archive.org">
-        <img src="https://archive.org/favicon.ico" alt="">Archive.org
+        <img src="https://archive.org/images/glogo.jpg" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E📚%3C/text%3E%3C/svg%3E'">Archive.org
       </a>
       <a href="/?url=github.com">
-        <img src="https://github.com/favicon.ico" alt="">GitHub
+        <img src="https://github.githubassets.com/favicons/favicon.svg" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E⚫%3C/text%3E%3C/svg%3E'">GitHub
       </a>
       <a href="/?url=stackoverflow.com">
-        <img src="https://stackoverflow.com/favicon.ico" alt="">StackOverflow
+        <img src="https://cdn.sstatic.net/Sites/stackoverflow/Img/favicon.ico" alt="" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ctext y=%2218%22 font-size=%2218%22%3E📊%3C/text%3E%3C/svg%3E'">StackOverflow
       </a>
     </div>
     
