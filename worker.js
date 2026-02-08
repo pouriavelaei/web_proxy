@@ -50,7 +50,9 @@ export default {
       // کپی هدرهای ضروری از request اصلی
       const headersToKeep = [
         'accept', 'accept-encoding', 'accept-language', 
-        'cache-control', 'range', 'if-none-match', 'if-modified-since'
+        'cache-control', 'range', 'if-none-match', 'if-modified-since',
+        'upgrade-insecure-requests', 'sec-fetch-dest', 'sec-fetch-mode', 
+        'sec-fetch-site', 'sec-fetch-user'
       ];
       
       for (const [key, value] of request.headers.entries()) {
@@ -59,18 +61,57 @@ export default {
         }
       }
       
-      // هدرهای اختصاصی
-      proxyHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+      // Forward cookies
+      const cookieHeader = request.headers.get('cookie');
+      if (cookieHeader) {
+        proxyHeaders.set('Cookie', cookieHeader);
+      }
+      
+      // هدرهای اختصاصی - شبیه‌سازی یک مرورگر واقعی
+      proxyHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+      proxyHeaders.set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7');
+      proxyHeaders.set('Accept-Language', 'en-US,en;q=0.9,fa;q=0.8');
+      proxyHeaders.set('Accept-Encoding', 'gzip, deflate, br');
       proxyHeaders.set('Referer', targetUrlObj.origin + '/');
       proxyHeaders.set('Origin', targetUrlObj.origin);
+      proxyHeaders.set('DNT', '1');
+      proxyHeaders.set('Connection', 'keep-alive');
+      proxyHeaders.set('Upgrade-Insecure-Requests', '1');
+      proxyHeaders.set('Sec-Fetch-Dest', 'document');
+      proxyHeaders.set('Sec-Fetch-Mode', 'navigate');
+      proxyHeaders.set('Sec-Fetch-Site', 'none');
+      proxyHeaders.set('Sec-Fetch-User', '?1');
+      proxyHeaders.set('Sec-Ch-Ua', '"Not_A Brand";v="8", "Chromium";v="131", "Google Chrome";v="131"');
+      proxyHeaders.set('Sec-Ch-Ua-Mobile', '?0');
+      proxyHeaders.set('Sec-Ch-Ua-Platform', '"Windows"');
       
       // فچ کردن محتوا
       const response = await fetch(targetUrl, {
         method: request.method,
         headers: proxyHeaders,
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-        redirect: 'follow'
+        redirect: 'follow',
+        cf: {
+          cacheEverything: false,
+          cacheTtl: 0
+        }
       });
+      
+      // چک کردن Cloudflare challenge
+      if (response.status === 403 || response.status === 503) {
+        const text = await response.text();
+        if (text.includes('cloudflare') || text.includes('Cloudflare') || text.includes('Ray ID')) {
+          return new Response(getCloudflareBlockPage(targetUrl), {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          });
+        }
+        // اگر Cloudflare challenge نبود، محتوا رو بفرست
+        return new Response(text, {
+          status: response.status,
+          headers: response.headers
+        });
+      }
       
       // ساخت هدرهای پاسخ
       const responseHeaders = new Headers(response.headers);
@@ -95,7 +136,7 @@ export default {
           const modified = value
             .replace(/;\s*domain=[^;]+/gi, '')
             .replace(/;\s*secure\s*(?=;|$)/gi, '')
-            .replace(/;\s*samesite=[^;]+/gi, '; SameSite=None');
+            .replace(/;\s*samesite=[^;]+/gi, '; SameSite=None; Secure');
           setCookies.push(modified);
         }
       }
@@ -498,6 +539,124 @@ function rewriteJS(js, originalUrl, proxyOrigin, targetBase) {
   return js;
 }
 
+// صفحه خطا برای Cloudflare Block
+function getCloudflareBlockPage(targetUrl) {
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>محدودیت دسترسی - وب پراکسی</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #f39c12;
+      margin-bottom: 20px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 15px;
+      line-height: 1.8;
+    }
+    .url {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      word-break: break-all;
+      font-family: monospace;
+      direction: ltr;
+      text-align: left;
+    }
+    .solutions {
+      text-align: right;
+      margin: 25px 0;
+      padding: 20px;
+      background: #fff3cd;
+      border-radius: 10px;
+      border-right: 4px solid #f39c12;
+    }
+    .solutions h3 {
+      color: #856404;
+      margin-bottom: 15px;
+    }
+    .solutions ul {
+      margin-right: 20px;
+      color: #856404;
+    }
+    .solutions li {
+      margin: 10px 0;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: bold;
+      transition: transform 0.2s;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🛡️</div>
+    <h1>سایت محافظت شده است</h1>
+    <p>این سایت از Cloudflare Protection استفاده می‌کنه و الان پراکسی‌ها رو block می‌کنه.</p>
+    
+    <div class="url">${targetUrl}</div>
+    
+    <div class="solutions">
+      <h3>راه‌حل‌های پیشنهادی:</h3>
+      <ul>
+        <li>✅ از VPN استفاده کنید</li>
+        <li>✅ مستقیماً به سایت برید (اگر دسترسی دارید)</li>
+        <li>✅ بعداً دوباره امتحان کنید</li>
+        <li>✅ سایت دیگری رو امتحان کنید</li>
+      </ul>
+    </div>
+    
+    <p style="color: #999; font-size: 0.9em;">
+      💡 بعضی سایت‌ها مثل Kick.com از سیستم‌های امنیتی قوی استفاده می‌کنن که پراکسی‌ها رو تشخیص میدن.
+    </p>
+    
+    <a href="/" class="btn">← بازگشت به صفحه اصلی</a>
+  </div>
+</body>
+</html>`;
+}
+
 // صفحه خطا
 function getErrorPage(message) {
   return `<!DOCTYPE html>
@@ -757,7 +916,7 @@ function getHomePage() {
         <a href="/?url=https://www.youtube.com" class="link-btn">🎬 YouTube</a>
         <a href="/?url=https://twitter.com" class="link-btn">🐦 Twitter</a>
         <a href="/?url=https://www.instagram.com" class="link-btn">📸 Instagram</a>
-        <a href="/?url=https://www.facebook.com" class="link-btn">👥 Facebook</a>
+        <a href="/?url=https://www.tiktok.com" class="link-btn">🎵 TikTok</a>
         <a href="/?url=https://www.reddit.com" class="link-btn">🔥 Reddit</a>
         <a href="/?url=https://wikipedia.org" class="link-btn">📚 Wikipedia</a>
       </div>
@@ -771,6 +930,9 @@ function getHomePage() {
         <li>✅ بدون نیاز به نصب هیچ برنامه‌ای</li>
         <li>✅ سریع و امن</li>
       </ul>
+      <p style="margin-top: 15px; font-size: 0.9em; color: #999;">
+        ⚠️ توجه: بعضی سایت‌ها مثل Kick.com از محافظت Cloudflare استفاده می‌کنن و ممکنه پراکسی کار نکنه.
+      </p>
     </div>
   </div>
   
