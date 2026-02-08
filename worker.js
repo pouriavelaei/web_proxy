@@ -551,23 +551,23 @@ function getHomePage() {
       <div class="hint">نیازی به نوشتن <span>https://</span> نیست</div>
     </form>
     
-    <div class="divider"><span>موتورهای جستجو (بدون CAPTCHA)</span></div>
+    <div class="divider"><span>موتورهای جستجو (نسخه HTML ساده)</span></div>
     
     <div class="quick-links">
-      <a href="/?url=searx.be">
-        <img src="https://searx.be/favicon.ico" alt="">SearXNG
+      <a href="/?url=html.duckduckgo.com/html">
+        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo HTML
       </a>
-      <a href="/?url=search.marginalia.nu">
-        <img src="https://search.marginalia.nu/favicon.ico" alt="">Marginalia
+      <a href="/?url=lite.duckduckgo.com/lite">
+        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo Lite
       </a>
-      <a href="/?url=mojeek.com">
-        <img src="https://www.mojeek.com/favicon.ico" alt="">Mojeek
+      <a href="/?url=www.qwant.com">
+        <img src="https://www.qwant.com/favicon.ico" alt="">Qwant
       </a>
       <a href="/?url=wiby.me">
         <img src="https://wiby.me/favicon.ico" alt="">Wiby
       </a>
-      <a href="/?url=yep.com">
-        <img src="https://yep.com/favicon.ico" alt="">Yep
+      <a href="/?url=www.mojeek.com">
+        <img src="https://www.mojeek.com/favicon.ico" alt="">Mojeek
       </a>
     </div>
     
@@ -594,7 +594,7 @@ function getHomePage() {
         سرور فعال است
       </div>
       <div class="warning">
-        ⚠️ Google، DuckDuckGo و اکثر موتورهای معروف CAPTCHA نشان می‌دهند - از SearXNG یا Mojeek استفاده کنید
+        ⚠️ نسخه‌های HTML/Lite موتورها بهتر کار می‌کنند - از DuckDuckGo HTML یا Lite استفاده کنید
       </div>
       <div class="info-box">
         <strong>💡 نکته:</strong>
