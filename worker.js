@@ -709,6 +709,53 @@ function getHomePage() {
       margin-bottom: 5px;
     }
     
+    .creator-info {
+      margin-top: 15px;
+      padding: 12px 15px;
+      background: rgba(139, 92, 246, 0.1);
+      border-radius: 10px;
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      font-size: 12px;
+      color: rgba(196, 181, 253, 0.9);
+      text-align: center;
+    }
+    
+    .creator-info strong {
+      color: #a78bfa;
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    
+    .creator-links {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    
+    .creator-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 20px;
+      color: #c4b5fd;
+      text-decoration: none;
+      font-size: 11px;
+      transition: all 0.3s ease;
+    }
+    
+    .creator-links a:hover {
+      background: rgba(139, 92, 246, 0.25);
+      border-color: rgba(139, 92, 246, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+    }
+    
     /* Responsive Design - Mobile */
     @media (max-width: 768px) {
       body {
@@ -814,6 +861,25 @@ function getHomePage() {
         margin-top: 12px;
         line-height: 1.5;
       }
+      
+      .creator-info {
+        font-size: 11px;
+        padding: 10px 12px;
+        margin-top: 12px;
+      }
+      
+      .creator-info strong {
+        font-size: 12px;
+      }
+      
+      .creator-links {
+        gap: 10px;
+      }
+      
+      .creator-links a {
+        padding: 5px 10px;
+        font-size: 10px;
+      }
     }
     
     /* Extra Small Mobile */
@@ -852,6 +918,16 @@ function getHomePage() {
       .divider {
         font-size: 11px;
       }
+      
+      .creator-links a {
+        padding: 5px 9px;
+        font-size: 9px;
+      }
+      
+      .creator-links svg {
+        width: 12px;
+        height: 12px;
+      }
     }
   </style>
 </head>
@@ -868,25 +944,6 @@ function getHomePage() {
       <button type="submit">🚀 ورود یا جستجو</button>
       <div class="hint">با <span>http://</span> یا <span>https://</span> برای سایت، بدون آن برای جستجو</div>
     </form>
-    
-    <script>
-      document.getElementById('proxyForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const input = document.getElementById('urlInput');
-        let url = input.value.trim();
-        
-        if (!url) return;
-        
-        // چک کردن اینکه آیا URL با http:// یا https:// شروع میشه
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-          // مستقیم به پراکسی بفرست
-          window.location.href = '/?url=' + encodeURIComponent(url);
-        } else {
-          // به موتور جستجو Mojeek بفرست
-          window.location.href = '/https://www.mojeek.com/search?q=' + encodeURIComponent(url) + '&theme=dark';
-        }
-      });
-    </script>
     
     <div class="divider"><span>داکیومنت‌های برنامه‌نویسی</span></div>
     
@@ -946,40 +1003,62 @@ function getHomePage() {
         <strong>💡 نکته:</strong>
         برای جستجو میتونید از تایپ کردن بدون http/https استفاده کنید، یا مستقیم به سایت‌های داکیومنت برید.
       </div>
+      <div class="creator-info">
+        <strong>👨‍💻 ساخته شده توسط:</strong>
+        <div class="creator-links">
+          <a href="/?url=https://github.com/pouriavelaei" target="_blank">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            GitHub
+          </a>
+          <a href="/?url=https://t.me/PythonFarsi2024" target="_blank">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+            </svg>
+            Telegram
+          </a>
+        </div>
+      </div>
     </div>
   </div>
   
   <script>
-    document.getElementById('proxyForm').addEventListener('submit', function(e) {
+    (function() {
+      const form = document.getElementById('proxyForm');
       const input = document.getElementById('urlInput');
-      let url = input.value.trim();
       
-      // حذف فاصله‌های اضافی
-      url = url.replace(/\s+/g, '');
+      // بارگذاری آخرین URL استفاده شده
+      const lastUrl = localStorage.getItem('lastProxyUrl');
+      if (lastUrl && !input.value) {
+        input.placeholder = 'آخرین: ' + lastUrl.substring(0, 30) + '...';
+      }
       
-      // اگر خالی بود، جلوگیری از ارسال
-      if (!url) {
+      // مدیریت submit فرم - فقط یک event listener
+      form.addEventListener('submit', function(e) {
         e.preventDefault();
-        input.focus();
-        return;
-      }
-      
-      input.value = url;
-    });
-    
-    // ذخیره آخرین URL استفاده شده
-    const urlInput = document.getElementById('urlInput');
-    const lastUrl = localStorage.getItem('lastProxyUrl');
-    if (lastUrl && !urlInput.value) {
-      urlInput.placeholder = 'آخرین: ' + lastUrl;
-    }
-    
-    document.getElementById('proxyForm').addEventListener('submit', function() {
-      const url = urlInput.value.trim();
-      if (url) {
+        
+        let url = input.value.trim().replace(/\s+/g, ' ').trim();
+        
+        // اگر خالی بود، جلوگیری
+        if (!url) {
+          input.focus();
+          return;
+        }
+        
+        // ذخیره در localStorage
         localStorage.setItem('lastProxyUrl', url);
-      }
-    });
+        
+        // تشخیص نوع URL و هدایت
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          // URL کامل - مستقیم به پراکسی
+          window.location.href = '/?url=' + encodeURIComponent(url);
+        } else {
+          // متن جستجو - به Mojeek
+          window.location.href = '/https://www.mojeek.com/search?q=' + encodeURIComponent(url) + '&theme=dark';
+        }
+      });
+    })();
   </script>
 </body>
 </html>`;
