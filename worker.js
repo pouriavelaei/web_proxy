@@ -36,11 +36,23 @@ export default {
     try {
       const target = new URL(targetUrl);
       
-      // ساخت هدرها
+      // ساخت هدرهای واقعی‌تر
       const headers = new Headers();
-      headers.set("User-Agent", request.headers.get("User-Agent") || "Mozilla/5.0");
-      headers.set("Accept", request.headers.get("Accept") || "*/*");
-      headers.set("Accept-Language", request.headers.get("Accept-Language") || "en-US,en;q=0.9");
+      const userAgent = request.headers.get("User-Agent") || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
+      headers.set("User-Agent", userAgent);
+      headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8");
+      headers.set("Accept-Language", "en-US,en;q=0.9,fa;q=0.8");
+      headers.set("Accept-Encoding", "gzip, deflate, br");
+      headers.set("Cache-Control", "no-cache");
+      headers.set("Pragma", "no-cache");
+      headers.set("Sec-Ch-Ua", '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"');
+      headers.set("Sec-Ch-Ua-Mobile", "?0");
+      headers.set("Sec-Ch-Ua-Platform", '"Windows"');
+      headers.set("Sec-Fetch-Dest", "document");
+      headers.set("Sec-Fetch-Mode", "navigate");
+      headers.set("Sec-Fetch-Site", "none");
+      headers.set("Sec-Fetch-User", "?1");
+      headers.set("Upgrade-Insecure-Requests", "1");
       
       // درخواست به سایت مقصد
       const response = await fetch(target.toString(), {
@@ -401,6 +413,16 @@ function getHomePage() {
       animation: pulse 2s infinite;
       box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
     }
+    
+    .warning {
+      margin-top: 12px;
+      font-size: 11px;
+      color: rgba(255, 200, 100, 0.7);
+      padding: 8px 15px;
+      background: rgba(255, 200, 100, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 200, 100, 0.15);
+    }
   </style>
 </head>
 <body>
@@ -441,6 +463,9 @@ function getHomePage() {
       <div class="status">
         <span class="status-dot"></span>
         سرور فعال است
+      </div>
+      <div class="warning">
+        ⚠️ برخی سایت‌ها مثل Google ممکن است CAPTCHA نشان دهند
       </div>
     </div>
   </div>
