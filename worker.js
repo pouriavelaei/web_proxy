@@ -708,6 +708,151 @@ function getHomePage() {
       display: block;
       margin-bottom: 5px;
     }
+    
+    /* Responsive Design - Mobile */
+    @media (max-width: 768px) {
+      body {
+        overflow-y: auto;
+        padding: 20px 0;
+      }
+      
+      .container {
+        padding: 35px 25px;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 100%;
+      }
+      
+      .logo {
+        font-size: 3em;
+        margin-bottom: 12px;
+      }
+      
+      h1 {
+        font-size: 1.6em;
+        margin-bottom: 6px;
+      }
+      
+      .subtitle {
+        font-size: 13px;
+        margin-bottom: 25px;
+        line-height: 1.5;
+      }
+      
+      input[type="text"] {
+        padding: 16px 18px 16px 45px;
+        font-size: 15px;
+        border-radius: 12px;
+      }
+      
+      .input-wrapper::before {
+        left: 15px;
+        font-size: 16px;
+      }
+      
+      button {
+        padding: 16px 25px;
+        font-size: 16px;
+        border-radius: 12px;
+      }
+      
+      .hint {
+        font-size: 11px;
+        flex-wrap: wrap;
+        line-height: 1.6;
+      }
+      
+      .hint span {
+        padding: 2px 6px;
+        font-size: 10px;
+      }
+      
+      .divider {
+        margin: 25px 0;
+        font-size: 12px;
+      }
+      
+      .divider span {
+        padding: 0 10px;
+      }
+      
+      .quick-links {
+        gap: 8px;
+      }
+      
+      .quick-links a {
+        padding: 9px 14px;
+        font-size: 12px;
+        gap: 5px;
+      }
+      
+      .quick-links img {
+        width: 16px;
+        height: 16px;
+      }
+      
+      .footer {
+        margin-top: 25px;
+        padding-top: 15px;
+        font-size: 11px;
+      }
+      
+      .status {
+        font-size: 11px;
+      }
+      
+      .warning {
+        font-size: 10px;
+        padding: 8px 12px;
+        margin-top: 10px;
+        line-height: 1.5;
+      }
+      
+      .info-box {
+        font-size: 11px;
+        padding: 10px 12px;
+        margin-top: 12px;
+        line-height: 1.5;
+      }
+    }
+    
+    /* Extra Small Mobile */
+    @media (max-width: 480px) {
+      .container {
+        padding: 30px 20px;
+      }
+      
+      .logo {
+        font-size: 2.5em;
+      }
+      
+      h1 {
+        font-size: 1.4em;
+      }
+      
+      .subtitle {
+        font-size: 12px;
+      }
+      
+      input[type="text"] {
+        padding: 14px 16px 14px 42px;
+        font-size: 14px;
+      }
+      
+      button {
+        padding: 14px 20px;
+        font-size: 15px;
+      }
+      
+      .quick-links a {
+        padding: 8px 12px;
+        font-size: 11px;
+      }
+      
+      .divider {
+        font-size: 11px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -949,6 +1094,79 @@ function getErrorPage(message) {
     
     .tips strong {
       color: #ef4444;
+    }
+    
+    /* Responsive Design - Mobile */
+    @media (max-width: 768px) {
+      body {
+        padding: 20px 0;
+      }
+      
+      .error-container {
+        padding: 35px 25px;
+        border-radius: 20px;
+        width: 95%;
+      }
+      
+      .error-icon {
+        font-size: 3em;
+        margin-bottom: 15px;
+      }
+      
+      h1 {
+        font-size: 1.5em;
+      }
+      
+      .error-message {
+        padding: 12px 15px;
+        font-size: 12px;
+        margin: 15px 0;
+      }
+      
+      .back-btn {
+        padding: 13px 28px;
+        font-size: 15px;
+        border-radius: 10px;
+      }
+      
+      .tips {
+        font-size: 12px;
+        margin-top: 25px;
+        padding-top: 15px;
+      }
+      
+      .tips li {
+        padding: 4px 0;
+        line-height: 1.5;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .error-container {
+        padding: 30px 20px;
+      }
+      
+      .error-icon {
+        font-size: 2.5em;
+      }
+      
+      h1 {
+        font-size: 1.3em;
+      }
+      
+      .error-message {
+        font-size: 11px;
+        padding: 10px 12px;
+      }
+      
+      .back-btn {
+        padding: 12px 25px;
+        font-size: 14px;
+      }
+      
+      .tips {
+        font-size: 11px;
+      }
     }
   </style>
 </head>
