@@ -141,10 +141,18 @@ export default {
         headers.set("Sec-Fetch-User", "?1");
       }
       
-      // فوروارد Cookie
+      // فوروارد تمام کوکی‌ها - مدیریت بهتر
       const cookies = request.headers.get("Cookie");
       if (cookies) {
-        headers.set("Cookie", cookies);
+        // تمیز کردن و فوروارد کوکی‌ها
+        const cleanCookies = cookies
+          .split(';')
+          .map(c => c.trim())
+          .filter(c => c.length > 0)
+          .join('; ');
+        if (cleanCookies) {
+          headers.set("Cookie", cleanCookies);
+        }
       }
       
       // Content-Type برای POST/PUT
@@ -169,9 +177,56 @@ export default {
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("Location");
         if (location) {
-          const absoluteLocation = new URL(location, target).toString();
+          // حل کردن URL نسبی به مطلق
+          let absoluteLocation;
+          try {
+            // اگر location یک URL کامل است
+            if (location.startsWith('http://') || location.startsWith('https://')) {
+              absoluteLocation = location;
+            } else if (location.startsWith('//')) {
+              // پروتکل نسبی
+              absoluteLocation = target.protocol + location;
+            } else if (location.startsWith('/')) {
+              // مسیر مطلق
+              absoluteLocation = target.origin + location;
+            } else {
+              // مسیر نسبی
+              const targetPath = target.pathname.substring(0, target.pathname.lastIndexOf('/') + 1);
+              absoluteLocation = target.origin + targetPath + location;
+            }
+          } catch (e) {
+            // در صورت خطا، استفاده از روش قدیمی
+            absoluteLocation = new URL(location, target).toString();
+          }
+          
           const newHeaders = new Headers(response.headers);
           newHeaders.set("Location", `${proxyOrigin}/${absoluteLocation}`);
+          
+          // حفظ کوکی‌ها در ریدایرکت
+          const setCookies = [];
+          response.headers.forEach((value, key) => {
+            if (key.toLowerCase() === 'set-cookie') {
+              setCookies.push(value);
+            }
+          });
+          
+          if (setCookies.length > 0) {
+            newHeaders.delete('set-cookie');
+            setCookies.forEach(cookie => {
+              let modifiedCookie = cookie
+                .replace(/;\s*domain=[^;]*/gi, '')
+                .replace(/;\s*secure\s*(?=;|$)/gi, '')
+                .replace(/;\s*samesite=strict/gi, '; SameSite=None')
+                .replace(/;\s*samesite=lax/gi, '; SameSite=None');
+              
+              if (!modifiedCookie.toLowerCase().includes('samesite=')) {
+                modifiedCookie += '; SameSite=None';
+              }
+              
+              newHeaders.append('Set-Cookie', modifiedCookie);
+            });
+          }
+          
           return new Response(null, {
             status: response.status,
             headers: newHeaders,
@@ -936,33 +991,105 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     return originalWindowOpen.call(this, url, ...args);
   };
   
-  // مدیریت کلیک روی لینک‌ها
+  // مدیریت window.location
+  const originalLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
+  Object.defineProperty(window.Location.prototype, 'href', {
+    set: function(url) {
+      return originalLocationSetter.call(this, rewriteUrl(url));
+    }
+  });
+  
+  // مدیریت location.assign و location.replace
+  const originalLocationAssign = window.Location.prototype.assign;
+  window.Location.prototype.assign = function(url) {
+    return originalLocationAssign.call(this, rewriteUrl(url));
+  };
+  
+  const originalLocationReplace = window.Location.prototype.replace;
+  window.Location.prototype.replace = function(url) {
+    return originalLocationReplace.call(this, rewriteUrl(url));
+  };
+  
+  // مدیریت history.pushState و history.replaceState
+  const originalPushState = window.History.prototype.pushState;
+  window.History.prototype.pushState = function(state, title, url) {
+    if (url) {
+      url = rewriteUrl(url);
+    }
+    return originalPushState.call(this, state, title, url);
+  };
+  
+  const originalReplaceState = window.History.prototype.replaceState;
+  window.History.prototype.replaceState = function(state, title, url) {
+    if (url) {
+      url = rewriteUrl(url);
+    }
+    return originalReplaceState.call(this, state, title, url);
+  };
+  
+  // مدیریت کلیک روی لینک‌ها و دکمه‌ها
   document.addEventListener('click', function(e) {
-    const link = e.target.closest('a');
-    if (link && link.href) {
-      const href = link.getAttribute('href');
-      if (href && !href.startsWith(proxyOrigin) && !href.startsWith('#') && !href.startsWith('javascript:')) {
-        e.preventDefault();
-        const newUrl = rewriteUrl(href);
-        if (link.target === '_blank') {
-          window.open(newUrl, '_blank');
-        } else {
-          window.location.href = newUrl;
+    // پیدا کردن نزدیک‌ترین لینک
+    const link = e.target.closest('a, [onclick], button[formaction]');
+    
+    if (link) {
+      // مدیریت لینک‌های href
+      if (link.href) {
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith(proxyOrigin) && !href.startsWith('#') && !href.startsWith('javascript:')) {
+          e.preventDefault();
+          const newUrl = rewriteUrl(href);
+          if (link.target === '_blank') {
+            window.open(newUrl, '_blank');
+          } else {
+            window.location.href = newUrl;
+          }
+        }
+      }
+      
+      // مدیریت onclick که ممکن است location را تغییر دهد
+      const onclickAttr = link.getAttribute('onclick');
+      if (onclickAttr && (onclickAttr.includes('location') || onclickAttr.includes('href'))) {
+        // این را می‌گذاریم که به صورت طبیعی اجرا شود، چون location setter را اورراید کردیم
+      }
+      
+      // مدیریت button با formaction
+      if (link.tagName === 'BUTTON' && link.hasAttribute('formaction')) {
+        const formaction = link.getAttribute('formaction');
+        if (formaction && !formaction.startsWith(proxyOrigin)) {
+          link.setAttribute('formaction', rewriteUrl(formaction));
         }
       }
     }
   }, true);
   
-  // مدیریت submit فرم‌ها
+  // مدیریت submit فرم‌ها - بهبود یافته
   document.addEventListener('submit', function(e) {
     const form = e.target;
-    if (form.action) {
-      const action = form.getAttribute('action');
-      if (action && !action.startsWith(proxyOrigin)) {
-        form.action = rewriteUrl(action);
-      }
+    const action = form.getAttribute('action');
+    
+    // اگر action خالی یا null باشد، به URL فعلی ارسال می‌شود
+    if (!action || action === '' || action === '#') {
+      form.action = window.location.href;
+    } else if (!action.startsWith(proxyOrigin)) {
+      // بازنویسی action برای فرم‌های معمولی
+      const rewrittenAction = rewriteUrl(action);
+      form.setAttribute('action', rewrittenAction);
+      form.action = rewrittenAction;
     }
   }, true);
+  
+  // مدیریت فرم‌هایی که با جاوااسکریپت submit می‌شوند
+  const originalFormSubmit = HTMLFormElement.prototype.submit;
+  HTMLFormElement.prototype.submit = function() {
+    const action = this.getAttribute('action');
+    if (!action || action === '' || action === '#') {
+      this.action = window.location.href;
+    } else if (!action.startsWith(proxyOrigin)) {
+      this.action = rewriteUrl(action);
+    }
+    return originalFormSubmit.call(this);
+  };
   
   // بازنویسی تمام iframe ها
   const observer = new MutationObserver(function(mutations) {
