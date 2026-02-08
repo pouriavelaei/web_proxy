@@ -743,23 +743,32 @@ function getHomePage() {
       });
     </script>
     
-    <div class="divider"><span>موتورهای جستجو (نسخه HTML ساده)</span></div>
+    <div class="divider"><span>داکیومنت‌های برنامه‌نویسی</span></div>
     
     <div class="quick-links">
-      <a href="/?url=html.duckduckgo.com/html">
-        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo HTML
+      <a href="/?url=https://developer.mozilla.org">
+        <img src="https://developer.mozilla.org/favicon.ico" alt="">MDN Web Docs
       </a>
-      <a href="/?url=lite.duckduckgo.com/lite">
-        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo Lite
+      <a href="/?url=https://docs.python.org">
+        <img src="https://www.python.org/favicon.ico" alt="">Python Docs
       </a>
-      <a href="/?url=www.qwant.com">
-        <img src="https://www.qwant.com/favicon.ico" alt="">Qwant
+      <a href="/?url=https://nodejs.org/docs">
+        <img src="https://nodejs.org/favicon.ico" alt="">Node.js Docs
       </a>
-      <a href="/?url=wiby.me">
-        <img src="https://wiby.me/favicon.ico" alt="">Wiby
+      <a href="/?url=https://react.dev">
+        <img src="https://react.dev/favicon.ico" alt="">React Docs
       </a>
-      <a href="/?url=www.mojeek.com">
-        <img src="https://www.mojeek.com/favicon.ico" alt="">Mojeek
+      <a href="/?url=https://www.php.net/docs.php">
+        <img src="https://www.php.net/favicon.ico" alt="">PHP Docs
+      </a>
+      <a href="/?url=https://go.dev/doc">
+        <img src="https://go.dev/favicon.ico" alt="">Go Docs
+      </a>
+      <a href="/?url=https://docs.rust-lang.org">
+        <img src="https://www.rust-lang.org/favicon.ico" alt="">Rust Docs
+      </a>
+      <a href="/?url=https://vuejs.org/guide">
+        <img src="https://vuejs.org/logo.svg" alt="">Vue.js Docs
       </a>
     </div>
     
@@ -786,11 +795,11 @@ function getHomePage() {
         سرور فعال است
       </div>
       <div class="warning">
-        ⚠️ موتورهای جستجو معمولاً با پروکسی CAPTCHA می‌دهند - **مستقیماً آدرس سایت را وارد کنید**
+        ⚠️ بعضی سایت‌ها ممکن است CAPTCHA نمایش دهند یا محدودیت داشته باشند
       </div>
       <div class="info-box">
-        <strong>💡 چرا CAPTCHA می‌دهد؟</strong>
-        IP دیتاسنتر Cloudflare و بدون Browser APIs واقعی، سایت‌های جستجو شما را به عنوان ربات شناسایی می‌کنند. برای جستجو بهتر است از Browser Extension استفاده کنید یا مستقیماً به Wikipedia.org بروید.
+        <strong>💡 نکته:</strong>
+        برای جستجو میتونید از تایپ کردن بدون http/https استفاده کنید، یا مستقیم به سایت‌های داکیومنت برید.
       </div>
     </div>
   </div>
