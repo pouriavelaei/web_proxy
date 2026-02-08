@@ -1,18 +1,11 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const proxyOrigin = url.origin;
     
     // صفحه اصلی - فرم ورود URL
     if (url.pathname === "/" && !url.searchParams.has("url")) {
       return new Response(getHomePage(), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
-    
-    // صفحه جستجوی اختصاصی
-    if (url.pathname === "/search" && url.searchParams.has("q")) {
-      return new Response(getSearchPage(url.searchParams.get("q")), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
@@ -382,12 +375,13 @@ export default {
       });
       
     } catch (error) {
-      return new Response(getErrorPage(error.message), {
+      console.error('Proxy Error:', error);
+      return new Response(getErrorPage(error.message || 'خطای نامشخص'), {
         status: 500,
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
-  },
+  }
 };
 
 function getHomePage() {
