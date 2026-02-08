@@ -146,9 +146,14 @@ function getHomePage() {
       50% { opacity: 0.7; }
     }
     
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.5); }
+    }
+    
     body {
       font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
-      background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #0f0c29);
+      background: linear-gradient(-45deg, #0a0a0a, #1a0a0a, #150505, #0d0d0d);
       background-size: 400% 400%;
       animation: gradient 15s ease infinite;
       min-height: 100vh;
@@ -167,21 +172,25 @@ function getHomePage() {
       left: 0;
       right: 0;
       bottom: 0;
-      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(220, 38, 38, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(185, 28, 28, 0.08) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23dc2626' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     }
     
     .container {
-      background: rgba(255,255,255,0.05);
+      background: rgba(20, 20, 20, 0.8);
       backdrop-filter: blur(20px);
       border-radius: 30px;
       padding: 50px 40px;
       max-width: 550px;
       width: 92%;
       text-align: center;
-      box-shadow: 0 25px 50px rgba(0,0,0,0.4), inset 0 0 60px rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+      border: 1px solid rgba(220, 38, 38, 0.2);
       position: relative;
       z-index: 1;
+      animation: glow 4s ease-in-out infinite;
     }
     
     .logo {
@@ -189,20 +198,22 @@ function getHomePage() {
       margin-bottom: 15px;
       animation: float 3s ease-in-out infinite;
       display: inline-block;
+      filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.5));
     }
     
     h1 {
       font-size: 2.2em;
       font-weight: 900;
       margin-bottom: 8px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      text-shadow: 0 0 40px rgba(220, 38, 38, 0.3);
     }
     
     .subtitle {
-      color: rgba(255,255,255,0.6);
+      color: rgba(255,255,255,0.5);
       margin-bottom: 35px;
       font-size: 15px;
     }
@@ -225,11 +236,11 @@ function getHomePage() {
     input[type="text"] {
       width: 100%;
       padding: 18px 20px 18px 50px;
-      border: 2px solid rgba(255,255,255,0.1);
+      border: 2px solid rgba(220, 38, 38, 0.3);
       border-radius: 15px;
       font-size: 16px;
       font-family: inherit;
-      background: rgba(255,255,255,0.08);
+      background: rgba(0, 0, 0, 0.4);
       color: #fff;
       direction: ltr;
       text-align: left;
@@ -237,14 +248,14 @@ function getHomePage() {
     }
     
     input[type="text"]::placeholder {
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.3);
     }
     
     input[type="text"]:focus {
       outline: none;
-      border-color: #667eea;
-      background: rgba(255,255,255,0.12);
-      box-shadow: 0 0 30px rgba(102, 126, 234, 0.3);
+      border-color: #dc2626;
+      background: rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
     }
     
     button {
@@ -252,7 +263,7 @@ function getHomePage() {
       padding: 18px 30px;
       border: none;
       border-radius: 15px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
       color: #fff;
       font-size: 17px;
       font-weight: 700;
@@ -261,6 +272,7 @@ function getHomePage() {
       transition: all 0.3s ease;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 10px 30px rgba(220, 38, 38, 0.3);
     }
     
     button::before {
@@ -276,7 +288,7 @@ function getHomePage() {
     
     button:hover {
       transform: translateY(-3px);
-      box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 15px 40px rgba(220, 38, 38, 0.5);
     }
     
     button:hover::before {
@@ -289,7 +301,7 @@ function getHomePage() {
     
     .hint {
       font-size: 12px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.35);
       margin-top: 12px;
       display: flex;
       align-items: center;
@@ -298,18 +310,19 @@ function getHomePage() {
     }
     
     .hint span {
-      background: rgba(255,255,255,0.1);
+      background: rgba(220, 38, 38, 0.2);
       padding: 3px 8px;
       border-radius: 5px;
       font-family: monospace;
       direction: ltr;
+      color: #ef4444;
     }
     
     .divider {
       display: flex;
       align-items: center;
       margin: 30px 0;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.25);
       font-size: 13px;
     }
     
@@ -317,7 +330,7 @@ function getHomePage() {
       content: '';
       flex: 1;
       height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.3), transparent);
     }
     
     .divider span {
@@ -336,8 +349,8 @@ function getHomePage() {
       align-items: center;
       gap: 6px;
       padding: 10px 18px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid rgba(220, 38, 38, 0.2);
       border-radius: 25px;
       color: #fff;
       text-decoration: none;
@@ -346,9 +359,10 @@ function getHomePage() {
     }
     
     .quick-links a:hover {
-      background: rgba(255,255,255,0.15);
-      border-color: rgba(255,255,255,0.2);
+      background: rgba(220, 38, 38, 0.25);
+      border-color: rgba(220, 38, 38, 0.4);
       transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(220, 38, 38, 0.2);
     }
     
     .quick-links img {
@@ -360,13 +374,13 @@ function getHomePage() {
     .footer {
       margin-top: 35px;
       padding-top: 20px;
-      border-top: 1px solid rgba(255,255,255,0.1);
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
       font-size: 12px;
-      color: rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.25);
     }
     
     .footer a {
-      color: #667eea;
+      color: #ef4444;
       text-decoration: none;
     }
     
@@ -375,22 +389,23 @@ function getHomePage() {
       align-items: center;
       gap: 6px;
       font-size: 12px;
-      color: #4ade80;
+      color: #22c55e;
       margin-top: 10px;
     }
     
     .status-dot {
       width: 8px;
       height: 8px;
-      background: #4ade80;
+      background: #22c55e;
       border-radius: 50%;
       animation: pulse 2s infinite;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="logo">🌍</div>
+    <div class="logo">🔥</div>
     <h1>وب پراکسی آزاد</h1>
     <p class="subtitle">به هر سایتی دسترسی داشته باشید - سریع و امن</p>
     
@@ -465,7 +480,7 @@ function getErrorPage(message) {
     
     body {
       font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
-      background: linear-gradient(-45deg, #1a1a2e, #2d1f3d, #1a1a2e);
+      background: linear-gradient(-45deg, #0a0a0a, #1a0a0a, #150505, #0d0d0d);
       color: #fff;
       display: flex;
       align-items: center;
@@ -474,36 +489,52 @@ function getErrorPage(message) {
       text-align: center;
     }
     
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.1) 0%, transparent 50%);
+    }
+    
     .error-container {
-      background: rgba(255,255,255,0.05);
+      background: rgba(20, 20, 20, 0.9);
       backdrop-filter: blur(20px);
       padding: 50px 40px;
       border-radius: 25px;
       max-width: 450px;
       width: 90%;
-      border: 1px solid rgba(255,100,100,0.2);
-      box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+      border: 1px solid rgba(220, 38, 38, 0.3);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 40px rgba(220, 38, 38, 0.1);
+      position: relative;
+      z-index: 1;
     }
     
     .error-icon {
       font-size: 4em;
       margin-bottom: 20px;
+      filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.5));
     }
     
     h1 {
       font-size: 1.8em;
       margin-bottom: 15px;
-      color: #ff6b6b;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
     
     .error-message {
-      background: rgba(255,100,100,0.1);
+      background: rgba(220, 38, 38, 0.1);
       padding: 15px 20px;
       border-radius: 10px;
       margin: 20px 0;
       font-size: 14px;
-      color: rgba(255,255,255,0.8);
-      border: 1px solid rgba(255,100,100,0.2);
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(220, 38, 38, 0.2);
       direction: ltr;
       word-break: break-all;
     }
@@ -512,25 +543,26 @@ function getErrorPage(message) {
       display: inline-block;
       margin-top: 20px;
       padding: 15px 35px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
       color: #fff;
       text-decoration: none;
       border-radius: 12px;
       font-weight: 700;
       transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(220, 38, 38, 0.3);
     }
     
     .back-btn:hover {
       transform: translateY(-3px);
-      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 15px 40px rgba(220, 38, 38, 0.5);
     }
     
     .tips {
       margin-top: 30px;
       padding-top: 20px;
-      border-top: 1px solid rgba(255,255,255,0.1);
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
       font-size: 13px;
-      color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.4);
     }
     
     .tips ul {
@@ -541,11 +573,15 @@ function getErrorPage(message) {
     .tips li {
       padding: 5px 0;
     }
+    
+    .tips strong {
+      color: #ef4444;
+    }
   </style>
 </head>
 <body>
   <div class="error-container">
-    <div class="error-icon">😕</div>
+    <div class="error-icon">🚨</div>
     <h1>مشکلی پیش آمد</h1>
     <div class="error-message">${message}</div>
     <a href="/" class="back-btn">← بازگشت به صفحه اصلی</a>
