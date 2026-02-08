@@ -895,6 +895,21 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   const targetOrigin = targetUrl.origin;
   const targetHost = targetUrl.host;
   
+  // بازنویسی base tag اگر وجود دارد
+  html = html.replace(/<base([^>]+)href=(["'])([^"']+)(["'])([^>]*)>/gi, (match, before, q1, href, q2, after) => {
+    let newHref = href;
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      if (!href.startsWith(proxyOrigin)) {
+        newHref = `${proxyOrigin}/${href}`;
+      }
+    } else if (href.startsWith('//')) {
+      newHref = `${proxyOrigin}/https:${href}`;
+    } else if (href.startsWith('/')) {
+      newHref = `${proxyOrigin}/${targetOrigin}${href}`;
+    }
+    return `<base${before}href=${q1}${newHref}${q2}${after}>`;
+  });
+  
   // بازنویسی لینک‌های کامل با http/https
   html = html.replace(/(href|src|action|data|poster|background)=(["'])(https?:\/\/[^"']+)(["'])/gi, (match, attr, q1, url, q2) => {
     return `${attr}=${q1}${proxyOrigin}/${url}${q2}`;
@@ -937,18 +952,47 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     
     url = url.trim();
     
+    // اگر URL با پراکسی شروع می‌شود، بدون تغییر برگردان
+    if (url.startsWith(proxyOrigin)) return url;
+    
+    // URL کامل با پروتکل
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (url.startsWith(proxyOrigin)) return url;
       return proxyOrigin + '/' + url;
     }
+    
+    // پروتکل نسبی
     if (url.startsWith('//')) {
       return proxyOrigin + '/https:' + url;
     }
+    
+    // مسیر مطلق
     if (url.startsWith('/')) {
       return proxyOrigin + '/' + targetOrigin + url;
     }
-    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('data:') || url.startsWith('mailto:') || url.startsWith('tel:')) {
+    
+    // URL های خاص که نباید تغییر کنند
+    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('data:') || url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('blob:')) {
       return url;
+    }
+    
+    // مسیرهای نسبی (بدون /)
+    // در این صورت باید نسبت به URL فعلی حل شوند
+    if (url.length > 0 && !url.includes(':')) {
+      const currentPath = window.location.pathname;
+      const currentPathParts = currentPath.split('/');
+      
+      // حذف آخرین قسمت (نام فایل فعلی)
+      currentPathParts.pop();
+      
+      // اضافه کردن مسیر نسبی
+      const basePath = currentPathParts.join('/');
+      if (basePath.includes(targetOrigin)) {
+        // استخراج مسیر بعد از targetOrigin
+        const parts = basePath.split(targetOrigin);
+        if (parts.length > 1) {
+          return proxyOrigin + '/' + targetOrigin + parts[1] + '/' + url;
+        }
+      }
     }
     
     return url;
@@ -1066,12 +1110,34 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   // مدیریت submit فرم‌ها - بهبود یافته
   document.addEventListener('submit', function(e) {
     const form = e.target;
-    const action = form.getAttribute('action');
+    let action = form.getAttribute('action');
     
     // اگر action خالی یا null باشد، به URL فعلی ارسال می‌شود
     if (!action || action === '' || action === '#') {
-      form.action = window.location.href;
-    } else if (!action.startsWith(proxyOrigin)) {
+      // برای فرم‌های GET، از pathname فعلی استفاده می‌کنیم
+      if (form.method && form.method.toUpperCase() === 'GET') {
+        // استخراج URL واقعی از پراکسی URL
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
+        const realUrl = currentPath.replace(/^\/+/, '');
+        
+        if (realUrl.startsWith('http://') || realUrl.startsWith('https://')) {
+          try {
+            const targetUrl = new URL(realUrl);
+            // استفاده از pathname واقعی سایت مقصد
+            action = targetOrigin + targetUrl.pathname;
+          } catch (e) {
+            action = window.location.href.split('?')[0];
+          }
+        } else {
+          action = window.location.href.split('?')[0];
+        }
+      } else {
+        action = window.location.href.split('?')[0];
+      }
+    }
+    
+    if (!action.startsWith(proxyOrigin)) {
       // بازنویسی action برای فرم‌های معمولی
       const rewrittenAction = rewriteUrl(action);
       form.setAttribute('action', rewrittenAction);
@@ -1082,10 +1148,29 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   // مدیریت فرم‌هایی که با جاوااسکریپت submit می‌شوند
   const originalFormSubmit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function() {
-    const action = this.getAttribute('action');
+    let action = this.getAttribute('action');
+    
     if (!action || action === '' || action === '#') {
-      this.action = window.location.href;
-    } else if (!action.startsWith(proxyOrigin)) {
+      if (this.method && this.method.toUpperCase() === 'GET') {
+        const currentPath = window.location.pathname;
+        const realUrl = currentPath.replace(/^\/+/, '');
+        
+        if (realUrl.startsWith('http://') || realUrl.startsWith('https://')) {
+          try {
+            const targetUrl = new URL(realUrl);
+            action = targetOrigin + targetUrl.pathname;
+          } catch (e) {
+            action = window.location.href.split('?')[0];
+          }
+        } else {
+          action = window.location.href.split('?')[0];
+        }
+      } else {
+        action = window.location.href.split('?')[0];
+      }
+    }
+    
+    if (!action.startsWith(proxyOrigin)) {
       this.action = rewriteUrl(action);
     }
     return originalFormSubmit.call(this);
@@ -1106,14 +1191,29 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     childList: true,
     subtree: true
   });
+  
+  // اصلاح base href اگر وجود دارد
+  const existingBase = document.querySelector('base');
+  if (existingBase) {
+    const baseHref = existingBase.getAttribute('href');
+    if (baseHref && !baseHref.startsWith(proxyOrigin)) {
+      existingBase.setAttribute('href', rewriteUrl(baseHref));
+    }
+  }
 })();
 </script>`;
   
-  html = html.replace(/<\/head>/i, script + '</head>');
+  // اضافه کردن base tag برای مدیریت بهتر URL های نسبی
+  const baseTag = `<base href="${proxyOrigin}/${targetOrigin}/">`;
   
-  // اگر </head> وجود نداشت، در ابتدای body اضافه کن
-  if (!html.includes('</head>')) {
-    html = html.replace(/<body/i, script + '<body');
+  // تزریق base و script به head
+  if (html.match(/<head[^>]*>/i)) {
+    html = html.replace(/<head[^>]*>/i, (match) => match + "\n" + baseTag + "\n" + script);
+  } else if (html.includes('</head>')) {
+    html = html.replace(/<\/head>/i, baseTag + "\n" + script + "\n</head>");
+  } else {
+    // اگر head نبود، قبل از body
+    html = html.replace(/<body/i, baseTag + "\n" + script + "\n<body");
   }
   
   return html;
