@@ -1,554 +1,809 @@
-// Web Proxy Worker for Cloudflare
-
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request) {
     const url = new URL(request.url);
+    const proxyOrigin = url.origin;
     
-    // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
-      return handleOptions();
-    }
-    
-    // صفحه اصلی
-    if (url.pathname === '/' && !url.searchParams.has('url')) {
+    // صفحه اصلی - فرم ورود URL
+    if (url.pathname === "/" && !url.searchParams.has("url")) {
       return new Response(getHomePage(), {
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
     
-    // استخراج URL مقصد
-    let targetUrl = url.searchParams.get('url');
-    
-    if (!targetUrl) {
-      return new Response(getErrorPage('لطفا URL را وارد کنید'), { 
-        status: 400,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    // صفحه جستجوی اختصاصی
+    if (url.pathname === "/search" && url.searchParams.has("q")) {
+      return new Response(getSearchPage(url.searchParams.get("q")), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
     
-    // چک کردن اگر URL دوبار encode شده (مثلاً از یک پراکسی دیگه)
-    // اگر خود URL یک پراکسیه، URL واقعی رو استخراج کن
-    if (targetUrl.includes(url.origin + '/?url=')) {
-      const match = targetUrl.match(/\?url=([^&]+)/);
-      if (match) {
-        targetUrl = decodeURIComponent(match[1]);
+    // دریافت URL مقصد
+    let targetUrl;
+    if (url.searchParams.has("url")) {
+      targetUrl = url.searchParams.get("url").trim();
+    } else {
+      // مسیر به صورت /https://example.com/path
+      // decode کردن کامل pathname و search به صورت جداگانه
+      let pathUrl = url.pathname.slice(1);
+      
+      // decode کردن pathname
+      if (pathUrl.includes('%')) {
+        try {
+          // decode کردن چند مرحله‌ای برای مواقعی که double-encoded است
+          let decoded = decodeURIComponent(pathUrl);
+          // چک کنیم اگر هنوز % دارد، یک بار دیگر decode کن
+          if (decoded.includes('%')) {
+            try {
+              decoded = decodeURIComponent(decoded);
+            } catch (e) {
+              // اگر نشد، همان decoded اول را نگه دار
+            }
+          }
+          pathUrl = decoded;
+        } catch (e) {
+          // اگر decode نشد، همان را استفاده کن
+          pathUrl = url.pathname.slice(1);
+        }
       }
+      
+      // اضافه کردن search (که خودش decode نشده است)
+      if (url.search) {
+        pathUrl += url.search;
+      }
+      
+      if (pathUrl.startsWith("http://") || pathUrl.startsWith("https://")) {
+        targetUrl = pathUrl;
+      } else if (pathUrl.length > 0 && pathUrl.includes(".")) {
+        targetUrl = "https://" + pathUrl;
+      } else {
+        // اگر مسیر نسبی است، سعی می‌کنیم از Referer استفاده کنیم
+        const referer = request.headers.get("Referer");
+        
+        if (referer && referer.includes(proxyOrigin)) {
+          try {
+            // استخراج سایت مقصد از referer
+            // مثال: https://proxy.com/https://www.youtube.com/watch
+            const refMatch = referer.match(/https?:\/\/[^/]+\/+(https?:\/\/[^/?#]+)/);
+            if (refMatch && refMatch[1]) {
+              const refTargetOrigin = refMatch[1];
+              targetUrl = refTargetOrigin + url.pathname + url.search;
+            } else {
+              return new Response(getHomePage(), {
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+              });
+            }
+          } catch (e) {
+            return new Response(getHomePage(), {
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            });
+          }
+        } else {
+          return new Response(getHomePage(), {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+      }
+    }
+    
+    // اضافه کردن پروتکل اگر کاربر ننوشته
+    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+      targetUrl = "https://" + targetUrl;
     }
     
     try {
-      // اضافه کردن https اگر نداره
-      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-        targetUrl = 'https://' + targetUrl;
-      }
+      const target = new URL(targetUrl);
       
-      const targetUrlObj = new URL(targetUrl);
-      const targetBase = targetUrlObj.origin;
+      // لیست User-Agent های جدید و واقعی (2025-2026)
+      const userAgents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
+      ];
       
-      // ساخت هدرها به ترتیب دقیق مرورگر واقعی
-      const proxyHeaders = new Headers();
+      // ساخت هدرهای واقعی‌تر
+      const headers = new Headers();
       
-      // ترتیب headers مهمه - دقیقاً مثل Chrome
-      proxyHeaders.set('Host', targetUrlObj.host);
-      proxyHeaders.set('Connection', 'keep-alive');
-      proxyHeaders.set('Cache-Control', 'max-age=0');
-      proxyHeaders.set('Sec-Ch-Ua', '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"');
-      proxyHeaders.set('Sec-Ch-Ua-Mobile', '?0');
-      proxyHeaders.set('Sec-Ch-Ua-Platform', '"Windows"');
-      proxyHeaders.set('Upgrade-Insecure-Requests', '1');
-      proxyHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      proxyHeaders.set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7');
-      proxyHeaders.set('Sec-Fetch-Site', 'none');
-      proxyHeaders.set('Sec-Fetch-Mode', 'navigate');
-      proxyHeaders.set('Sec-Fetch-User', '?1');
-      proxyHeaders.set('Sec-Fetch-Dest', 'document');
-      proxyHeaders.set('Accept-Encoding', 'gzip, deflate, br');
-      proxyHeaders.set('Accept-Language', 'en-US,en;q=0.9');
+      // استفاده از User-Agent کاربر یا انتخاب تصادفی
+      const clientUA = request.headers.get("User-Agent");
+      const userAgent = clientUA && clientUA.includes("Mozilla") ? clientUA : userAgents[Math.floor(Math.random() * userAgents.length)];
+      const isFirefox = userAgent.includes("Firefox");
+      const isSafari = userAgent.includes("Safari") && !userAgent.includes("Chrome");
       
-      // اضافه کردن cookie اگر داریم
-      const cookieHeader = request.headers.get('cookie');
-      if (cookieHeader) {
-        proxyHeaders.set('Cookie', cookieHeader);
-      }
+      // مدیریت Referer - استخراج یکبار
+      const originalReferer = request.headers.get("Referer");
+      let realReferer = target.origin + "/";
+      let isFromProxy = false;
       
-      // فچ کردن محتوا
-      const response = await fetch(targetUrl, {
-        method: request.method,
-        headers: proxyHeaders,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-        redirect: 'follow',
-        cf: {
-          cacheTtl: 0,
-          cacheEverything: false,
+      if (originalReferer && originalReferer.includes(proxyOrigin)) {
+        isFromProxy = true;
+        const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/.+)/);
+        if (refMatch) {
+          realReferer = refMatch[1];
         }
+      }
+      
+      // هدرهای اصلی
+      headers.set("User-Agent", userAgent);
+      headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+      headers.set("Accept-Language", "en-US,en;q=0.9");
+      headers.set("Accept-Encoding", "gzip, deflate, br, zstd");
+      headers.set("Upgrade-Insecure-Requests", "1");
+      
+      // Cache-Control فقط برای GET
+      if (request.method === "GET") {
+        headers.set("Cache-Control", "max-age=0");
+      }
+      
+      // Referer همیشه تنظیم می‌شود
+      headers.set("Referer", realReferer);
+      
+      // Origin فقط برای POST/PUT
+      if (request.method === "POST" || request.method === "PUT") {
+        headers.set("Origin", target.origin);
+      }
+      
+      // هدرهای مخصوص Chrome
+      if (!isFirefox && !isSafari) {
+        headers.set("Sec-Ch-Ua", '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"');
+        headers.set("Sec-Ch-Ua-Mobile", "?0");
+        headers.set("Sec-Ch-Ua-Platform", '"Windows"');
+      }
+      
+      // Sec-Fetch headers - منطق درست
+      if (request.method === "POST" || request.method === "PUT") {
+        // چک میکنیم آیا این یک form submission است یا AJAX
+        const contentType = request.headers.get("Content-Type") || "";
+        const isFormSubmit = contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data");
+        
+        if (isFormSubmit) {
+          // Form submission
+          headers.set("Sec-Fetch-Dest", "document");
+          headers.set("Sec-Fetch-Mode", "navigate");
+        } else {
+          // AJAX request
+          headers.set("Sec-Fetch-Dest", "empty");
+          headers.set("Sec-Fetch-Mode", "cors");
+        }
+        headers.set("Sec-Fetch-Site", "same-origin");
+        headers.set("Sec-Fetch-User", "?1");
+      } else {
+        headers.set("Sec-Fetch-Dest", "document");
+        headers.set("Sec-Fetch-Mode", "navigate");
+        
+        if (isFromProxy) {
+          // چک کردن اگر referer از همان host است
+          try {
+            const refUrl = new URL(realReferer);
+            if (refUrl.host === target.host) {
+              headers.set("Sec-Fetch-Site", "same-origin");
+            } else {
+              headers.set("Sec-Fetch-Site", "cross-site");
+            }
+          } catch {
+            headers.set("Sec-Fetch-Site", "same-origin");
+          }
+        } else {
+          headers.set("Sec-Fetch-Site", "none");
+        }
+        headers.set("Sec-Fetch-User", "?1");
+      }
+      
+      // فوروارد تمام کوکی‌ها - مدیریت بهتر
+      const cookies = request.headers.get("Cookie");
+      if (cookies) {
+        // تمیز کردن و فوروارد کوکی‌ها
+        const cleanCookies = cookies
+          .split(';')
+          .map(c => c.trim())
+          .filter(c => c.length > 0)
+          .join('; ');
+        if (cleanCookies) {
+          headers.set("Cookie", cleanCookies);
+        }
+      }
+      
+      // Content-Type برای POST/PUT
+      if (request.method === "POST" || request.method === "PUT") {
+        const contentType = request.headers.get("Content-Type");
+        if (contentType) {
+          headers.set("Content-Type", contentType);
+        }
+      }
+      
+      // بدون تاخیر - تاخیر مصنوعی باعث timeout و مشکلات دیگر می‌شود
+      
+      // درخواست به سایت مقصد
+      const response = await fetch(target.toString(), {
+        method: request.method,
+        headers: headers,
+        body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+        redirect: "manual",
       });
       
-      // چک کردن response
-      
-      // اگر Cloudflare challenge بود، محتوا رو به همون شکل بفرست
-      // شاید JavaScript challenge رو مرورگر حل کنه
-      if (response.status === 403 || response.status === 503) {
-        const clonedResponse = response.clone();
-        const text = await clonedResponse.text();
-        
-        // اگر Cloudflare challenge هست، بازنویسی کن و بفرست
-        if (text.includes('Cloudflare') && (text.includes('challenge') || text.includes('Ray ID'))) {
-          // بازنویسی HTML همون challenge page
-          const rewritten = rewriteHTML(text, targetUrl, url.origin, targetBase);
+      // مدیریت ریدایرکت
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("Location");
+        if (location) {
+          // حل کردن URL نسبی به مطلق
+          let absoluteLocation;
+          try {
+            // اگر location یک URL کامل است
+            if (location.startsWith('http://') || location.startsWith('https://')) {
+              absoluteLocation = location;
+            } else if (location.startsWith('//')) {
+              // پروتکل نسبی
+              absoluteLocation = target.protocol + location;
+            } else if (location.startsWith('/')) {
+              // مسیر مطلق - باید نسبت به target origin حل شود
+              absoluteLocation = target.origin + location;
+            } else if (location.startsWith('?')) {
+              // Query string فقط - به pathname فعلی اضافه می‌شود
+              absoluteLocation = target.origin + target.pathname + location;
+            } else if (location.startsWith('#')) {
+              // Fragment فقط
+              absoluteLocation = target.origin + target.pathname + target.search + location;
+            } else {
+              // مسیر نسبی - باید نسبت به pathname فعلی حل شود
+              const targetPath = target.pathname.substring(0, target.pathname.lastIndexOf('/') + 1);
+              absoluteLocation = target.origin + targetPath + location;
+            }
+          } catch (e) {
+            // در صورت خطا، استفاده از روش قدیمی
+            absoluteLocation = new URL(location, target).toString();
+          }
           
-          const responseHeaders = new Headers(response.headers);
-          responseHeaders.delete('content-security-policy');
-          responseHeaders.delete('x-frame-options');
-          responseHeaders.set('Access-Control-Allow-Origin', '*');
+          const newHeaders = new Headers(response.headers);
+          newHeaders.set("Location", `${proxyOrigin}/${absoluteLocation}`);
           
-          return new Response(rewritten, {
-            status: 200, // 200 برگردون نه 403
-            statusText: 'OK',
-            headers: responseHeaders
+          // حفظ کوکی‌ها در ریدایرکت
+          const setCookies = [];
+          response.headers.forEach((value, key) => {
+            if (key.toLowerCase() === 'set-cookie') {
+              setCookies.push(value);
+            }
+          });
+          
+          if (setCookies.length > 0) {
+            newHeaders.delete('set-cookie');
+            setCookies.forEach(cookie => {
+              let modifiedCookie = cookie
+                .replace(/;\s*domain=[^;]*/gi, '')
+                .replace(/;\s*secure\s*(?=;|$)/gi, '')
+                .replace(/;\s*samesite=strict/gi, '; SameSite=None')
+                .replace(/;\s*samesite=lax/gi, '; SameSite=None');
+              
+              if (!modifiedCookie.toLowerCase().includes('samesite=')) {
+                modifiedCookie += '; SameSite=None';
+              }
+              
+              newHeaders.append('Set-Cookie', modifiedCookie);
+            });
+          }
+          
+          return new Response(null, {
+            status: response.status,
+            headers: newHeaders,
           });
         }
       }
       
-      // ساخت هدرهای پاسخ
-      const responseHeaders = new Headers(response.headers);
+      const contentType = response.headers.get("Content-Type") || "";
       
-      // حذف هدرهای مشکل‌ساز
-      const headersToRemove = [
-        'content-security-policy', 'x-frame-options', 'content-security-policy-report-only',
-        'strict-transport-security', 'x-content-type-options', 'clear-site-data',
-        'expect-ct', 'permissions-policy'
-      ];
-      headersToRemove.forEach(h => responseHeaders.delete(h));
-      
-      // CORS headers
-      responseHeaders.set('Access-Control-Allow-Origin', '*');
-      responseHeaders.set('Access-Control-Allow-Methods', '*');
-      responseHeaders.set('Access-Control-Allow-Headers', '*');
-      responseHeaders.set('Access-Control-Expose-Headers', '*');
-      responseHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      responseHeaders.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
-      
-      // مدیریت کوکی‌ها
-      const setCookies = [];
-      for (const [key, value] of response.headers.entries()) {
-        if (key.toLowerCase() === 'set-cookie') {
-          // اصلاً domain و path رو حذف نکن، فقط SameSite رو تنظیم کن
-          let modified = value;
-          
-          // اگر Secure نداره، اضافه کن
-          if (!modified.includes('Secure')) {
-            modified += '; Secure';
-          }
-          
-          // SameSite رو به None تغییر بده
-          if (modified.includes('SameSite=')) {
-            modified = modified.replace(/SameSite=[^;]+/gi, 'SameSite=None');
-          } else {
-            modified += '; SameSite=None';
-          }
-          
-          setCookies.push(modified);
-        }
-      }
-      
-      responseHeaders.delete('set-cookie');
-      setCookies.forEach(cookie => responseHeaders.append('Set-Cookie', cookie));
-      
-      // پردازش محتوا
-      const contentType = response.headers.get('content-type') || '';
-      
-      if (contentType.includes('text/html')) {
+      // بازنویسی HTML
+      if (contentType.includes("text/html")) {
         let html = await response.text();
-        html = rewriteHTML(html, targetUrl, url.origin, targetBase);
+        html = rewriteHtml(html, proxyOrigin, target);
+        
+        const newHeaders = new Headers(response.headers);
+        newHeaders.delete("content-encoding");
+        newHeaders.delete("content-length");
+        newHeaders.delete("content-security-policy");
+        newHeaders.delete("content-security-policy-report-only");
+        newHeaders.delete("x-frame-options");
+        newHeaders.delete("strict-transport-security");
+        newHeaders.set("Access-Control-Allow-Origin", "*");
+        newHeaders.set("Access-Control-Allow-Credentials", "true");
+        
+        // مدیریت بهتر کوکی‌ها
+        const setCookies = [];
+        response.headers.forEach((value, key) => {
+          if (key.toLowerCase() === 'set-cookie') {
+            setCookies.push(value);
+          }
+        });
+        
+        if (setCookies.length > 0) {
+          newHeaders.delete('set-cookie');
+          setCookies.forEach(cookie => {
+            let modifiedCookie = cookie
+              .replace(/;\s*domain=[^;]*/gi, '')
+              .replace(/;\s*secure\s*(?=;|$)/gi, '')
+              .replace(/;\s*samesite=strict/gi, '; SameSite=None')
+              .replace(/;\s*samesite=lax/gi, '; SameSite=None');
+            
+            if (!modifiedCookie.toLowerCase().includes('samesite=')) {
+              modifiedCookie += '; SameSite=None';
+            }
+            
+            newHeaders.append('Set-Cookie', modifiedCookie);
+          });
+        }
+        
         return new Response(html, {
           status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders
+          headers: newHeaders,
         });
       }
       
-      if (contentType.includes('css')) {
+      // بازنویسی CSS
+      if (contentType.includes("text/css")) {
         let css = await response.text();
-        css = rewriteCSS(css, targetUrl, url.origin, targetBase);
+        css = rewriteCss(css, proxyOrigin, target);
+        
+        const newHeaders = new Headers(response.headers);
+        newHeaders.delete("content-encoding");
+        newHeaders.delete("content-length");
+        newHeaders.set("Access-Control-Allow-Origin", "*");
+        
         return new Response(css, {
           status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders
+          headers: newHeaders,
         });
       }
       
-      if (contentType.includes('javascript')) {
+      // بازنویسی JavaScript
+      if (contentType.includes("application/javascript") || contentType.includes("text/javascript")) {
         let js = await response.text();
-        js = rewriteJS(js, targetUrl, url.origin, targetBase);
+        js = rewriteJs(js, proxyOrigin, target);
+        
+        const newHeaders = new Headers(response.headers);
+        newHeaders.delete("content-encoding");
+        newHeaders.delete("content-length");
+        newHeaders.set("Access-Control-Allow-Origin", "*");
+        
         return new Response(js, {
           status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders
+          headers: newHeaders,
         });
       }
       
-      // سایر فایل‌ها
+      // سایر محتواها بدون تغییر
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set("Access-Control-Allow-Origin", "*");
+      newHeaders.delete("content-security-policy");
+      newHeaders.delete("content-security-policy-report-only");
+      
       return new Response(response.body, {
         status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders
+        headers: newHeaders,
       });
       
     } catch (error) {
-      return new Response(getErrorPage(error.message), { 
+      return new Response(getErrorPage(error.message), {
         status: 500,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
-  }
+  },
 };
 
-function handleOptions() {
-  return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': '*',
-      'Access-Control-Allow-Headers': '*',
-      'Access-Control-Max-Age': '86400',
+function getHomePage() {
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>وب پراکسی آزاد</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
-  });
-}
-
-// بازنویسی HTML
-function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
-  const baseUrl = new URL(originalUrl);
-  
-  const proxyUrl = (url) => {
-    try {
-      if (!url || url.trim() === '' || url.startsWith('data:') || 
-          url.startsWith('blob:') || url.startsWith('javascript:') || 
-          url.startsWith('about:') || url === '#' || url.startsWith('mailto:') ||
-          url.startsWith('tel:')) {
-        return url;
-      }
-      
-      // اگر قبلاً پراکسی شده، برگردون
-      if (url.includes(proxyOrigin + '/?url=')) {
-        return url;
-      }
-      
-      let absoluteUrl;
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        absoluteUrl = url;
-      } else if (url.startsWith('//')) {
-        absoluteUrl = 'https:' + url;
-      } else if (url.startsWith('/')) {
-        absoluteUrl = targetBase + url;
-      } else if (url.startsWith('?')) {
-        // Query string - حفظ path فعلی
-        const currentPath = baseUrl.pathname;
-        absoluteUrl = targetBase + currentPath + url;
-      } else if (url.startsWith('#')) {
-        // Hash فقط - return as is
-        return url;
-      } else {
-        // Relative URL
-        absoluteUrl = new URL(url, originalUrl).href;
-      }
-      
-      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
-    } catch (e) {
-      console.warn('Failed to proxy URL:', url, e);
-      return url;
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
     }
-  };
-  
-  // بازنویسی تمام attributeها با دقت بیشتر
-  // href attribute
-  html = html.replace(/<a\s+([^>]*\s)?href\s*=\s*["']([^"']+)["']/gi, (match, before, url) => {
-    const proxied = proxyUrl(url);
-    return `<a ${before || ''}href="${proxied}"`;
-  });
-  
-  // src attribute
-  html = html.replace(/<(img|script|iframe|embed|source|video|audio)\s+([^>]*\s)?src\s*=\s*["']([^"']+)["']/gi, (match, tag, before, url) => {
-    const proxied = proxyUrl(url);
-    return `<${tag} ${before || ''}src="${proxied}"`;
-  });
-  
-  // action attribute برای فرم‌ها
-  html = html.replace(/<form\s+([^>]*\s)?action\s*=\s*["']([^"']+)["']/gi, (match, before, url) => {
-    const proxied = proxyUrl(url);
-    return `<form ${before || ''}action="${proxied}"`;
-  });
-  
-  // data و poster attributes
-  html = html.replace(/\b(data|poster)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
-    // فقط اگر شبیه URL بود
-    if (url.startsWith('http') || url.startsWith('/') || url.startsWith('//')) {
-      return `${attr}="${proxyUrl(url)}"`;
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
     }
-    return match;
-  });
-  
-  // بازنویسی srcset
-  html = html.replace(/\bsrcset\s*=\s*["']([^"']+)["']/gi, (match, srcset) => {
-    const newSrcset = srcset.split(',').map(item => {
-      const parts = item.trim().split(/\s+/);
-      parts[0] = proxyUrl(parts[0]);
-      return parts.join(' ');
-    }).join(', ');
-    return `srcset="${newSrcset}"`;
-  });
-  
-  // بازنویسی inline styles با url()
-  html = html.replace(/style\s*=\s*["']([^"']*url\([^"']*\)[^"']*)["']/gi, (match, style) => {
-    const newStyle = style.replace(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi, (m, url) => {
-      return `url("${proxyUrl(url.trim())}")`;
-    });
-    return `style="${newStyle}"`;
-  });
-  
-  // اضافه کردن base tag برای relative URLs (اگر نداره)
-  if (!html.match(/<base[^>]+>/i)) {
-    const baseTag = `<base href="${proxyOrigin}/?url=${encodeURIComponent(targetBase + '/')}">`;
-    if (html.match(/<head[^>]*>/i)) {
-      html = html.replace(/<head([^>]*)>/i, `<head$1>\n  ${baseTag}`);
+    
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.5); }
     }
-  }
+    
+    body {
+      font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+      background: linear-gradient(-45deg, #0a0a0a, #1a0a0a, #150505, #0d0d0d);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 20% 80%, rgba(220, 38, 38, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(185, 28, 28, 0.08) 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23dc2626' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    
+    .container {
+      background: rgba(20, 20, 20, 0.8);
+      backdrop-filter: blur(20px);
+      border-radius: 30px;
+      padding: 50px 40px;
+      max-width: 550px;
+      width: 92%;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      position: relative;
+      z-index: 1;
+      animation: glow 4s ease-in-out infinite;
+    }
+    
+    .logo {
+      font-size: 4em;
+      margin-bottom: 15px;
+      animation: float 3s ease-in-out infinite;
+      display: inline-block;
+      filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.5));
+    }
+    
+    h1 {
+      font-size: 2.2em;
+      font-weight: 900;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 0 40px rgba(220, 38, 38, 0.3);
+    }
+    
+    .subtitle {
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 35px;
+      font-size: 15px;
+    }
+    
+    .input-wrapper {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    .input-wrapper::before {
+      content: '🔗';
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 18px;
+      z-index: 2;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 18px 20px 18px 50px;
+      border: 2px solid rgba(220, 38, 38, 0.3);
+      border-radius: 15px;
+      font-size: 16px;
+      font-family: inherit;
+      background: rgba(0, 0, 0, 0.4);
+      color: #fff;
+      direction: ltr;
+      text-align: left;
+      transition: all 0.3s ease;
+    }
+    
+    input[type="text"]::placeholder {
+      color: rgba(255,255,255,0.3);
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #dc2626;
+      background: rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
+    }
+    
+    button {
+      width: 100%;
+      padding: 18px 30px;
+      border: none;
+      border-radius: 15px;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(220, 38, 38, 0.3);
+    }
+    
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: 0.5s;
+    }
+    
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(220, 38, 38, 0.5);
+    }
+    
+    button:hover::before {
+      left: 100%;
+    }
+    
+    button:active {
+      transform: translateY(-1px);
+    }
+    
+    .hint {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    
+    .hint span {
+      background: rgba(220, 38, 38, 0.2);
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-family: monospace;
+      direction: ltr;
+      color: #ef4444;
+    }
+    
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 30px 0;
+      color: rgba(255,255,255,0.25);
+      font-size: 13px;
+    }
+    
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.3), transparent);
+    }
+    
+    .divider span {
+      padding: 0 15px;
+    }
+    
+    .quick-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .quick-links a {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 18px;
+      background: rgba(220, 38, 38, 0.1);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      border-radius: 25px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+    
+    .quick-links a:hover {
+      background: rgba(220, 38, 38, 0.25);
+      border-color: rgba(220, 38, 38, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(220, 38, 38, 0.2);
+    }
+    
+    .quick-links img {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+    }
+    
+    .footer {
+      margin-top: 35px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
+      font-size: 12px;
+      color: rgba(255,255,255,0.25);
+    }
+    
+    .footer a {
+      color: #ef4444;
+      text-decoration: none;
+    }
+    
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #22c55e;
+      margin-top: 10px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    }
+    
+    .warning {
+      margin-top: 12px;
+      font-size: 11px;
+      color: rgba(255, 200, 100, 0.7);
+      padding: 8px 15px;
+      background: rgba(255, 200, 100, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 200, 100, 0.15);
+    }
+    
+    .info-box {
+      margin-top: 15px;
+      padding: 12px 15px;
+      background: rgba(59, 130, 246, 0.1);
+      border-radius: 10px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      font-size: 12px;
+      color: rgba(147, 197, 253, 0.9);
+      text-align: right;
+    }
+    
+    .info-box strong {
+      color: #60a5fa;
+      display: block;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">🔥</div>
+    <h1>وب پراکسی آزاد</h1>
+    <p class="subtitle">به هر سایتی دسترسی داشته باشید - سریع و امن</p>
+    
+    <form action="/" method="GET" id="proxyForm">
+      <div class="input-wrapper">
+        <input type="text" name="url" id="urlInput" placeholder="example.com یا https://site.com" autocomplete="off" autofocus>
+      </div>
+      <button type="submit">🚀 باز کردن سایت</button>
+      <div class="hint">نیازی به نوشتن <span>https://</span> نیست</div>
+    </form>
+    
+    <div class="divider"><span>موتورهای جستجو (نسخه HTML ساده)</span></div>
+    
+    <div class="quick-links">
+      <a href="/?url=html.duckduckgo.com/html">
+        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo HTML
+      </a>
+      <a href="/?url=lite.duckduckgo.com/lite">
+        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo Lite
+      </a>
+      <a href="/?url=www.qwant.com">
+        <img src="https://www.qwant.com/favicon.ico" alt="">Qwant
+      </a>
+      <a href="/?url=wiby.me">
+        <img src="https://wiby.me/favicon.ico" alt="">Wiby
+      </a>
+      <a href="/?url=www.mojeek.com">
+        <img src="https://www.mojeek.com/favicon.ico" alt="">Mojeek
+      </a>
+    </div>
+    
+    <div class="divider"><span>سایت‌های محبوب</span></div>
+    
+    <div class="quick-links">
+      <a href="/?url=wikipedia.org">
+        <img src="https://www.wikipedia.org/favicon.ico" alt="">Wikipedia
+      </a>
+      <a href="/?url=archive.org">
+        <img src="https://archive.org/favicon.ico" alt="">Archive.org
+      </a>
+      <a href="/?url=github.com">
+        <img src="https://github.com/favicon.ico" alt="">GitHub
+      </a>
+      <a href="/?url=stackoverflow.com">
+        <img src="https://stackoverflow.com/favicon.ico" alt="">StackOverflow
+      </a>
+    </div>
+    
+    <div class="footer">
+      <div class="status">
+        <span class="status-dot"></span>
+        سرور فعال است
+      </div>
+      <div class="warning">
+        ⚠️ موتورهای جستجو معمولاً با پروکسی CAPTCHA می‌دهند - **مستقیماً آدرس سایت را وارد کنید**
+      </div>
+      <div class="info-box">
+        <strong>💡 چرا CAPTCHA می‌دهد؟</strong>
+        IP دیتاسنتر Cloudflare و بدون Browser APIs واقعی، سایت‌های جستجو شما را به عنوان ربات شناسایی می‌کنند. برای جستجو بهتر است از Browser Extension استفاده کنید یا مستقیماً به Wikipedia.org بروید.
+      </div>
+    </div>
+  </div>
   
-  // اضافه کردن اسکریپت proxy
-  const script = `
   <script>
-  (function() {
-    const PROXY_ORIGIN = '${proxyOrigin}';
-    const TARGET_BASE = '${targetBase}';
-    const CURRENT_URL = '${originalUrl}';
+    document.getElementById('proxyForm').addEventListener('submit', function(e) {
+      const input = document.getElementById('urlInput');
+      let url = input.value.trim();
+      
+      // حذف فاصله‌های اضافی
+      url = url.replace(/\s+/g, '');
+      
+      // اگر خالی بود، جلوگیری از ارسال
+      if (!url) {
+        e.preventDefault();
+        input.focus();
+        return;
+      }
+      
+      input.value = url;
+    });
     
-    // تابع کمکی برای پراکسی کردن URL
-    function proxyUrl(url) {
-      if (!url || typeof url !== 'string') return url;
-      
-      // فیلتر کردن URLهای خاص
-      if (url.startsWith('data:') || url.startsWith('blob:') || 
-          url.startsWith('javascript:') || url.startsWith('about:') ||
-          url === '#' || url.startsWith('mailto:') || url.startsWith('tel:')) {
-        return url;
-      }
-      
-      // اگر قبلاً پراکسی شده، برگردون
-      if (url.includes(PROXY_ORIGIN + '/?url=')) {
-        return url;
-      }
-      
-      try {
-        let absoluteUrl;
-        
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-          // URL کامل
-          absoluteUrl = url;
-        } else if (url.startsWith('//')) {
-          // Protocol-relative URL
-          absoluteUrl = 'https:' + url;
-        } else if (url.startsWith('/')) {
-          // Absolute path
-          absoluteUrl = TARGET_BASE + url;
-        } else if (url.startsWith('?') || url.startsWith('#')) {
-          // Query یا hash - نسبت به URL فعلی
-          absoluteUrl = CURRENT_URL.split('?')[0].split('#')[0] + url;
-        } else {
-          // Relative URL
-          const currentUrlObj = new URL(CURRENT_URL);
-          const basePath = currentUrlObj.pathname.substring(0, currentUrlObj.pathname.lastIndexOf('/') + 1);
-          absoluteUrl = currentUrlObj.origin + basePath + url;
-        }
-        
-        return PROXY_ORIGIN + '/?url=' + encodeURIComponent(absoluteUrl);
-      } catch (e) {
-        console.warn('Failed to proxy URL:', url, e);
-        return url;
-      }
+    // ذخیره آخرین URL استفاده شده
+    const urlInput = document.getElementById('urlInput');
+    const lastUrl = localStorage.getItem('lastProxyUrl');
+    if (lastUrl && !urlInput.value) {
+      urlInput.placeholder = 'آخرین: ' + lastUrl;
     }
     
-    // Override fetch
-    const originalFetch = window.fetch;
-    window.fetch = function(url, opts) {
-      try {
-        if (typeof url === 'string') {
-          url = proxyUrl(url);
-        } else if (url && url.url) {
-          url.url = proxyUrl(url.url);
-        }
-      } catch (e) {
-        console.error('Fetch override error:', e);
+    document.getElementById('proxyForm').addEventListener('submit', function() {
+      const url = urlInput.value.trim();
+      if (url) {
+        localStorage.setItem('lastProxyUrl', url);
       }
-      return originalFetch(url, opts);
-    };
-    
-    // Override XMLHttpRequest
-    const XHR = XMLHttpRequest.prototype;
-    const origOpen = XHR.open;
-    XHR.open = function(method, url, ...args) {
-      try {
-        if (typeof url === 'string') {
-          url = proxyUrl(url);
-        }
-      } catch (e) {
-        console.error('XHR override error:', e);
-      }
-      return origOpen.call(this, method, url, ...args);
-    };
-    
-    // Override window.open
-    const origWindowOpen = window.open;
-    window.open = function(url, ...args) {
-      try {
-        if (url && typeof url === 'string') {
-          url = proxyUrl(url);
-        }
-      } catch (e) {
-        console.error('window.open override error:', e);
-      }
-      return origWindowOpen.call(this, url, ...args);
-    };
-    
-    // Override form submission
-    document.addEventListener('submit', function(e) {
-      try {
-        const form = e.target;
-        if (form && form.action) {
-          const newAction = proxyUrl(form.action);
-          form.setAttribute('action', newAction);
-        }
-      } catch (e) {
-        console.error('Form submit override error:', e);
-      }
-    }, true);
-    
-    // Override history API
-    const origPushState = history.pushState;
-    const origReplaceState = history.replaceState;
-    
-    history.pushState = function(state, title, url) {
-      try {
-        if (url && typeof url === 'string' && !url.startsWith('#')) {
-          url = proxyUrl(url);
-        }
-      } catch (e) {
-        console.error('pushState override error:', e);
-      }
-      return origPushState.call(this, state, title, url);
-    };
-    
-    history.replaceState = function(state, title, url) {
-      try {
-        if (url && typeof url === 'string' && !url.startsWith('#')) {
-          url = proxyUrl(url);
-        }
-      } catch (e) {
-        console.error('replaceState override error:', e);
-      }
-      return origReplaceState.call(this, state, title, url);
-    };
-    
-    // Override anchor clicks برای safety
-    document.addEventListener('click', function(e) {
-      try {
-        let target = e.target;
-        // پیدا کردن نزدیکترین anchor tag
-        while (target && target.tagName !== 'A') {
-          target = target.parentElement;
-        }
-        
-        if (target && target.tagName === 'A') {
-          const href = target.getAttribute('href');
-          
-          // اگر href نداره یا special URL هست، بذار به حال خودش
-          if (!href || href === '#' || href.startsWith('javascript:') || 
-              href.startsWith('mailto:') || href.startsWith('tel:')) {
-            return;
-          }
-          
-          // اگر قبلاً پراکسی شده، بذار به حال خودش
-          if (href.includes(PROXY_ORIGIN + '/?url=')) {
-            return;
-          }
-          
-          // پراکسی کردن URL
-          e.preventDefault();
-          e.stopPropagation();
-          
-          const proxiedUrl = proxyUrl(href);
-          
-          // چک کردن target attribute
-          if (target.target === '_blank' || target.target === '_new') {
-            window.open(proxiedUrl, target.target);
-          } else {
-            window.location.href = proxiedUrl;
-          }
-        }
-      } catch (err) {
-        console.error('Click handler error:', err);
-        // اگر خطا داشت، بذار navigation عادی اتفاق بیفته
-      }
-    }, true);
-  })();
-  </script>`;
-  
-  if (html.match(/<\/head>/i)) {
-    html = html.replace(/<\/head>/i, script + '</head>');
-  } else if (html.match(/<body[^>]*>/i)) {
-    html = html.replace(/<body([^>]*)>/i, '<body$1>' + script);
-  } else {
-    html = script + html;
-  }
-  
-  return html;
+    });
+  </script>
+</body>
+</html>`;
 }
 
-// بازنویسی CSS  
-function rewriteCSS(css, originalUrl, proxyOrigin, targetBase) {
-  const baseUrl = new URL(originalUrl);
-  
-  const proxyUrl = (url) => {
-    try {
-      if (!url || url.trim() === '' || url.startsWith('data:') || url.startsWith('blob:')) {
-        return url;
-      }
-      
-      url = url.trim();
-      let absoluteUrl;
-      
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        absoluteUrl = url;
-      } else if (url.startsWith('//')) {
-        absoluteUrl = 'https:' + url;
-      } else if (url.startsWith('/')) {
-        absoluteUrl = targetBase + url;
-      } else {
-        absoluteUrl = new URL(url, originalUrl).href;
-      }
-      
-      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
-    } catch {
-      return url;
-    }
-  };
-  
-  // بازنویسی url()
-  css = css.replace(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi, (match, url) => {
-    return `url("${proxyUrl(url)}")`;
-  });
-  
-  // بازنویسی @import
-  css = css.replace(/@import\s+(['"])([^'"]+)\1/gi, (match, quote, url) => {
-    return `@import ${quote}${proxyUrl(url)}${quote}`;
-  });
-  
-  return css;
-}
-
-// بازنویسی JavaScript
-function rewriteJS(js, originalUrl, proxyOrigin, targetBase) {
-  // فعلاً JS رو بدون تغییر برمیگردونیم چون ممکنه کد خراب بشه
-  return js;
-}
-
-// صفحه خطا
 function getErrorPage(message) {
   return `<!DOCTYPE html>
 <html dir="rtl" lang="fa">
@@ -556,297 +811,588 @@ function getErrorPage(message) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>خطا - وب پراکسی</title>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
+      font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+      background: linear-gradient(-45deg, #0a0a0a, #1a0a0a, #150505, #0d0d0d);
+      color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-    }
-    .container {
-      background: white;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      max-width: 600px;
-      width: 100%;
+      min-height: 100vh;
       text-align: center;
     }
+    
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.1) 0%, transparent 50%);
+    }
+    
+    .error-container {
+      background: rgba(20, 20, 20, 0.9);
+      backdrop-filter: blur(20px);
+      padding: 50px 40px;
+      border-radius: 25px;
+      max-width: 450px;
+      width: 90%;
+      border: 1px solid rgba(220, 38, 38, 0.3);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5), 0 0 40px rgba(220, 38, 38, 0.1);
+      position: relative;
+      z-index: 1;
+    }
+    
     .error-icon {
-      font-size: 64px;
+      font-size: 4em;
       margin-bottom: 20px;
+      filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.5));
     }
+    
     h1 {
-      color: #e74c3c;
-      margin-bottom: 20px;
+      font-size: 1.8em;
+      margin-bottom: 15px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
-    p {
-      color: #666;
-      margin-bottom: 30px;
-      line-height: 1.6;
-    }
-    .btn {
-      display: inline-block;
-      padding: 15px 40px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-decoration: none;
+    
+    .error-message {
+      background: rgba(220, 38, 38, 0.1);
+      padding: 15px 20px;
       border-radius: 10px;
-      font-weight: bold;
-      transition: transform 0.2s;
+      margin: 20px 0;
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+      direction: ltr;
+      word-break: break-all;
     }
-    .btn:hover {
-      transform: translateY(-2px);
+    
+    .back-btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 15px 35px;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 700;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(220, 38, 38, 0.3);
+    }
+    
+    .back-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 40px rgba(220, 38, 38, 0.5);
+    }
+    
+    .tips {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(220, 38, 38, 0.15);
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+    }
+    
+    .tips ul {
+      list-style: none;
+      margin-top: 10px;
+    }
+    
+    .tips li {
+      padding: 5px 0;
+    }
+    
+    .tips strong {
+      color: #ef4444;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="error-icon">⚠️</div>
-    <h1>خطا در بارگذاری</h1>
-    <p>${message}</p>
-    <a href="/" class="btn">← بازگشت به صفحه اصلی</a>
+  <div class="error-container">
+    <div class="error-icon">🚨</div>
+    <h1>مشکلی پیش آمد</h1>
+    <div class="error-message">${escapeHtml(message)}</div>
+    <a href="/" class="back-btn">← بازگشت به صفحه اصلی</a>
+    <div class="tips">
+      <strong>راهنما:</strong>
+      <ul>
+        <li>✓ آدرس سایت را بررسی کنید</li>
+        <li>✓ از صحیح بودن نام دامنه مطمئن شوید</li>
+        <li>✓ ممکن است سایت موقتاً در دسترس نباشد</li>
+        <li>✓ برای Google از DuckDuckGo استفاده کنید</li>
+      </ul>
+    </div>
   </div>
 </body>
 </html>`;
 }
 
-// صفحه اصلی
-function getHomePage() {
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="fa">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>وب پراکسی</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    
-    .container {
-      background: white;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      max-width: 600px;
-      width: 100%;
-    }
-    
-    h1 {
-      color: #667eea;
-      margin-bottom: 10px;
-      font-size: 2.5em;
-      text-align: center;
-    }
-    
-    .subtitle {
-      text-align: center;
-      color: #666;
-      margin-bottom: 30px;
-      font-size: 1.1em;
-    }
-    
-    .input-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    
-    input[type="text"] {
-      flex: 1;
-      padding: 15px 20px;
-      border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 16px;
-      transition: all 0.3s;
-      direction: ltr;
-      text-align: left;
-    }
-    
-    input[type="text"]:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-    
-    button {
-      padding: 15px 30px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.2s;
-      white-space: nowrap;
-    }
-    
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-    }
-    
-    button:active {
-      transform: translateY(0);
-    }
-    
-    .quick-links {
-      margin-top: 20px;
-    }
-    
-    .quick-links h3 {
-      color: #333;
-      margin-bottom: 15px;
-      font-size: 1.2em;
-    }
-    
-    .links {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 10px;
-    }
-    
-    .link-btn {
-      padding: 12px 20px;
-      background: #f5f5f5;
-      color: #333;
-      text-decoration: none;
-      border-radius: 8px;
-      text-align: center;
-      transition: all 0.3s;
-      display: block;
-    }
-    
-    .link-btn:hover {
-      background: #667eea;
-      color: white;
-      transform: translateY(-2px);
-    }
-    
-    .info {
-      margin-top: 30px;
-      padding: 20px;
-      background: #f8f9fa;
-      border-radius: 10px;
-      border-right: 4px solid #667eea;
-    }
-    
-    .info h3 {
-      color: #667eea;
-      margin-bottom: 10px;
-    }
-    
-    .info ul {
-      margin-right: 20px;
-      color: #666;
-      line-height: 1.8;
-    }
-    
-    @media (max-width: 600px) {
-      .container {
-        padding: 25px;
-      }
-      
-      h1 {
-        font-size: 2em;
-      }
-      
-      .input-group {
-        flex-direction: column;
-      }
-      
-      button {
-        width: 100%;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🌐 وب پراکسی</h1>
-    <p class="subtitle">به هر سایتی دسترسی داشته باشید</p>
-    
-    <form action="/" method="GET">
-      <div class="input-group">
-        <input 
-          type="text" 
-          name="url" 
-          placeholder="آدرس وب‌سایت را وارد کنید (مثال: youtube.com)" 
-          required
-          autocomplete="off"
-        >
-        <button type="submit">برو</button>
-      </div>
-    </form>
-    
-    <div class="quick-links">
-      <h3>دسترسی سریع:</h3>
-      <div class="links">
-        <a href="/?url=https://www.youtube.com" class="link-btn">🎬 YouTube</a>
-        <a href="/?url=https://twitter.com" class="link-btn">🐦 Twitter</a>
-        <a href="/?url=https://kick.com" class="link-btn">🎮 Kick</a>
-        <a href="/?url=https://www.tiktok.com" class="link-btn">🎵 TikTok</a>
-        <a href="/?url=https://www.reddit.com" class="link-btn">🔥 Reddit</a>
-        <a href="/?url=https://wikipedia.org" class="link-btn">📚 Wikipedia</a>
-      </div>
-    </div>
-    
-    <div class="info">
-      <h3>ویژگی‌ها:</h3>
-      <ul>
-        <li>✅ دسترسی به تمام وب‌سایت‌ها</li>
-        <li>✅ پشتیبانی کامل از کوکی‌ها و session</li>
-        <li>✅ بدون نیاز به نصب هیچ برنامه‌ای</li>
-        <li>✅ سریع و امن</li>
-      </ul>
-    </div>
-  </div>
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function rewriteHtml(html, proxyOrigin, targetUrl) {
+  const targetOrigin = targetUrl.origin;
+  const targetHost = targetUrl.host;
   
-  <script>
-    // Focus on input field when page loads
-    document.querySelector('input[name="url"]').focus();
+  // بازنویسی base tag اگر وجود دارد
+  html = html.replace(/<base([^>]+)href=(["'])([^"']+)(["'])([^>]*)>/gi, (match, before, q1, href, q2, after) => {
+    let newHref = href;
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      if (!href.startsWith(proxyOrigin)) {
+        newHref = `${proxyOrigin}/${href}`;
+      }
+    } else if (href.startsWith('//')) {
+      newHref = `${proxyOrigin}/https:${href}`;
+    } else if (href.startsWith('/')) {
+      newHref = `${proxyOrigin}/${targetOrigin}${href}`;
+    }
+    return `<base${before}href=${q1}${newHref}${q2}${after}>`;
+  });
+  
+  // بازنویسی لینک‌های کامل با http/https
+  html = html.replace(/(href|src|action|data|poster|background)=(["'])(https?:\/\/[^"']+)(["'])/gi, (match, attr, q1, url, q2) => {
+    return `${attr}=${q1}${proxyOrigin}/${url}${q2}`;
+  });
+  
+  // بازنویسی لینک‌های نسبی به پروتکل (//)
+  html = html.replace(/(href|src|action|data|poster)=(["'])(\/\/[^"']+)(["'])/gi, (match, attr, q1, url, q2) => {
+    return `${attr}=${q1}${proxyOrigin}/https:${url}${q2}`;
+  });
+  
+  // بازنویسی لینک‌های نسبی (/)
+  html = html.replace(/(href|src|action|data|poster|background)=(["'])(\/[^/"'][^"']*)(["'])/gi, (match, attr, q1, path, q2) => {
+    if (path.startsWith("//")) return match;
+    return `${attr}=${q1}${proxyOrigin}/${targetOrigin}${path}${q2}`;
+  });
+  
+  // بازنویسی meta refresh
+  html = html.replace(/<meta([^>]*http-equiv=["']refresh["'][^>]*content=["'][^"']*url=)([^"']+)(["'][^>]*)>/gi, (match, before, url, after) => {
+    let newUrl = url.trim();
+    if (newUrl.startsWith('http://') || newUrl.startsWith('https://')) {
+      newUrl = `${proxyOrigin}/${newUrl}`;
+    } else if (newUrl.startsWith('//')) {
+      newUrl = `${proxyOrigin}/https:${newUrl}`;
+    } else if (newUrl.startsWith('/')) {
+      newUrl = `${proxyOrigin}/${targetOrigin}${newUrl}`;
+    }
+    return `<meta${before}${newUrl}${after}>`;
+  });
+  
+  // تزریق اسکریپت برای مدیریت لینک‌های داینامیک
+  const script = `<script>
+(function() {
+  const proxyOrigin = "${proxyOrigin}";
+  const targetOrigin = "${targetOrigin}";
+  const targetHost = "${targetHost}";
+  
+  // تابع استخراج URL واقعی از پراکسی URL
+  function getRealCurrentUrl() {
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    const currentHash = window.location.hash;
     
-    // Form already submits with GET method to /?url=...
-    // So we just need to make sure the URL is properly formatted
-    document.querySelector('form').addEventListener('submit', function(e) {
-      let url = document.querySelector('input[name="url"]').value.trim();
-      
-      if (!url) {
-        e.preventDefault();
-        return;
+    // حذف اسلش‌های اضافی از اول
+    const cleanPath = currentPath.replace(/^\\/+/, '');
+    
+    // اگر با http شروع می‌شود، URL کامل است
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      return cleanPath + currentSearch + currentHash;
+    }
+    
+    // در غیر این صورت، باید نسبت به targetOrigin باشد
+    return targetOrigin + '/' + cleanPath + currentSearch + currentHash;
+  }
+  
+  // تابع بازنویسی URL
+  function rewriteUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    
+    url = url.trim();
+    
+    // اگر URL با پراکسی شروع می‌شود، بدون تغییر برگردان
+    if (url.startsWith(proxyOrigin)) return url;
+    
+    // URL کامل با پروتکل
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return proxyOrigin + '/' + url;
+    }
+    
+    // پروتکل نسبی
+    if (url.startsWith('//')) {
+      return proxyOrigin + '/https:' + url;
+    }
+    
+    // مسیر مطلق - باید نسبت به targetOrigin حل شود
+    if (url.startsWith('/')) {
+      return proxyOrigin + '/' + targetOrigin + url;
+    }
+    
+    // URL های خاص که نباید تغییر کنند
+    if (url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('data:') || url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('blob:')) {
+      return url;
+    }
+    
+    // مسیرهای نسبی (بدون /) - باید نسبت به URL فعلی حل شوند
+    if (url.length > 0 && !url.includes(':')) {
+      try {
+        const realCurrentUrl = getRealCurrentUrl();
+        const currentUrl = new URL(realCurrentUrl);
+        const resolvedUrl = new URL(url, currentUrl.href);
+        return proxyOrigin + '/' + resolvedUrl.toString();
+      } catch (e) {
+        // در صورت خطا، به روش قدیمی
+        return proxyOrigin + '/' + targetOrigin + '/' + url;
+      }
+    }
+    
+    return url;
+  }
+  
+  // بازنویسی fetch
+  const originalFetch = window.fetch;
+  window.fetch = function(url, options) {
+    if (typeof url === 'string') {
+      url = rewriteUrl(url);
+    } else if (url instanceof Request) {
+      url = new Request(rewriteUrl(url.url), url);
+    }
+    return originalFetch.call(this, url, options);
+  };
+  
+  // بازنویسی XMLHttpRequest
+  const originalXhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+    return originalXhrOpen.call(this, method, rewriteUrl(url), ...rest);
+  };
+  
+  // بازنویسی WebSocket
+  const originalWebSocket = window.WebSocket;
+  window.WebSocket = function(url, protocols) {
+    if (typeof url === 'string') {
+      url = url.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
+      url = rewriteUrl(url);
+      url = url.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+    }
+    return new originalWebSocket(url, protocols);
+  };
+  
+  // بازنویسی window.open
+  const originalWindowOpen = window.open;
+  window.open = function(url, ...args) {
+    if (url) {
+      url = rewriteUrl(url);
+    }
+    return originalWindowOpen.call(this, url, ...args);
+  };
+  
+  // مدیریت window.location - override کامل
+  const originalLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
+  Object.defineProperty(window.Location.prototype, 'href', {
+    set: function(url) {
+      if (url && typeof url === 'string') {
+        if (url.startsWith('/') && !url.startsWith('//' + proxyOrigin)) {
+          url = proxyOrigin + '/' + targetOrigin + url;
+        } else if (!url.startsWith('http') && !url.startsWith(proxyOrigin) && !url.startsWith('#') && !url.startsWith('javascript:')) {
+          url = rewriteUrl(url);
+        } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+          url = proxyOrigin + '/' + url;
+        }
+      }
+      return originalLocationSetter.call(this, url);
+    },
+    get: function() {
+      return originalLocationSetter.call(this);
+    }
+  });
+  
+  // مدیریت location.assign و location.replace
+  const originalLocationAssign = window.Location.prototype.assign;
+  window.Location.prototype.assign = function(url) {
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalLocationAssign.call(this, url);
+  };
+  
+  const originalLocationReplace = window.Location.prototype.replace;
+  window.Location.prototype.replace = function(url) {
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalLocationReplace.call(this, url);
+  };
+  
+  // مدیریت history.pushState و history.replaceState
+  const originalPushState = window.History.prototype.pushState;
+  window.History.prototype.pushState = function(state, title, url) {
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalPushState.call(this, state, title, url);
+  };
+  
+  const originalReplaceState = window.History.prototype.replaceState;
+  window.History.prototype.replaceState = function(state, title, url) {
+    if (url && typeof url === 'string') {
+      if (url.startsWith('/') && !url.startsWith('//')) {
+        url = proxyOrigin + '/' + targetOrigin + url;
+      } else if (!url.startsWith('http') && !url.startsWith('#')) {
+        url = rewriteUrl(url);
+      } else if (url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+    }
+    return originalReplaceState.call(this, state, title, url);
+  };
+  
+  // مدیریت کلیک روی لینک‌ها و دکمه‌ها
+  document.addEventListener('click', function(e) {
+    // پیدا کردن نزدیک‌ترین لینک
+    const link = e.target.closest('a, [onclick], button[formaction]');
+    
+    if (link) {
+      // مدیریت لینک‌های href
+      if (link.href) {
+        const href = link.getAttribute('href');
+        if (href && !href.startsWith(proxyOrigin) && !href.startsWith('#') && !href.startsWith('javascript:')) {
+          e.preventDefault();
+          const newUrl = rewriteUrl(href);
+          if (link.target === '_blank') {
+            window.open(newUrl, '_blank');
+          } else {
+            window.location.href = newUrl;
+          }
+        }
       }
       
-      // اضافه کردن https اگر نداره
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        e.preventDefault();
-        url = 'https://' + url;
-        window.location.href = '/?url=' + encodeURIComponent(url);
+      // مدیریت onclick که ممکن است location را تغییر دهد
+      const onclickAttr = link.getAttribute('onclick');
+      if (onclickAttr && (onclickAttr.includes('location') || onclickAttr.includes('href'))) {
+        // این را می‌گذاریم که به صورت طبیعی اجرا شود، چون location setter را اورراید کردیم
       }
-      // اگر URL درست بود، form رو بذار submit بشه
+      
+      // مدیریت button با formaction
+      if (link.tagName === 'BUTTON' && link.hasAttribute('formaction')) {
+        const formaction = link.getAttribute('formaction');
+        if (formaction && !formaction.startsWith(proxyOrigin)) {
+          link.setAttribute('formaction', rewriteUrl(formaction));
+        }
+      }
+    }
+  }, true);
+  
+  // مدیریت submit فرم‌ها - بهبود یافته
+  document.addEventListener('submit', function(e) {
+    const form = e.target;
+    let action = form.getAttribute('action');
+    
+    // اگر action خالی یا null باشد
+    if (!action || action === '' || action === '#') {
+      // از URL واقعی فعلی استفاده می‌کنیم
+      const realUrl = getRealCurrentUrl();
+      try {
+        const currentUrl = new URL(realUrl);
+        action = currentUrl.origin + currentUrl.pathname;
+      } catch (e) {
+        action = targetOrigin + '/';
+      }
+    }
+    
+    if (!action.startsWith(proxyOrigin)) {
+      // بازنویسی action
+      const rewrittenAction = rewriteUrl(action);
+      form.setAttribute('action', rewrittenAction);
+      form.action = rewrittenAction;
+    }
+  }, true);
+  
+  // مدیریت فرم‌هایی که با جاوااسکریپت submit می‌شوند
+  const originalFormSubmit = HTMLFormElement.prototype.submit;
+  HTMLFormElement.prototype.submit = function() {
+    let action = this.getAttribute('action');
+    
+    if (!action || action === '' || action === '#') {
+      const realUrl = getRealCurrentUrl();
+      try {
+        const currentUrl = new URL(realUrl);
+        action = currentUrl.origin + currentUrl.pathname;
+      } catch (e) {
+        action = targetOrigin + '/';
+      }
+    }
+    
+    if (!action.startsWith(proxyOrigin)) {
+      this.action = rewriteUrl(action);
+    }
+    return originalFormSubmit.call(this);
+  };
+  
+  // بازنویسی تمام iframe ها
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.tagName === 'IFRAME' && node.src && !node.src.startsWith(proxyOrigin)) {
+          node.src = rewriteUrl(node.src);
+        }
+      });
     });
-  </script>
-</body>
-</html>`;
+  });
+  
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+  
+  // اصلاح base href اگر وجود دارد
+  function ensureCorrectBase() {
+    const existingBase = document.querySelector('base');
+    const correctBaseHref = proxyOrigin + '/' + targetOrigin + '/';
+    
+    if (existingBase) {
+      const currentHref = existingBase.getAttribute('href');
+      if (currentHref !== correctBaseHref) {
+        existingBase.setAttribute('href', correctBaseHref);
+      }
+    } else {
+      // اگر base وجود ندارد، اضافه کن
+      const newBase = document.createElement('base');
+      newBase.href = correctBaseHref;
+      document.head.insertBefore(newBase, document.head.firstChild);
+    }
+  }
+  
+  // اجرای اولیه
+  ensureCorrectBase();
+  
+  // چک کردن مداوم base tag (یوتیوب ممکن است آن را تغییر دهد)
+  setInterval(ensureCorrectBase, 500);
+  
+  // Navigation interceptor - جلوگیری از ناوبری اشتباه
+  if (window.navigation) {
+    window.navigation.addEventListener('navigate', function(e) {
+      const destination = e.destination.url;
+      
+      // اگر به URL نسبی می‌رود که با پراکسی شروع نمی‌شود
+      if (destination && !destination.startsWith(proxyOrigin + '/http')) {
+        const destinationUrl = new URL(destination);
+        const path = destinationUrl.pathname;
+        
+        // اگر مسیر نسبی است و نباید به صفحه اصلی برود
+        if (path && path !== '/' && !path.startsWith('/http')) {
+          e.preventDefault();
+          const correctedUrl = proxyOrigin + '/' + targetOrigin + path + destinationUrl.search + destinationUrl.hash;
+          window.location.href = correctedUrl;
+        }
+      }
+    });
+  }
+})();
+</script>`;
+  
+  // اضافه کردن base tag برای مدیریت بهتر URL های نسبی
+  const baseTag = `<base href="${proxyOrigin}/${targetOrigin}/">`;
+  
+  // تزریق base و script به head
+  if (html.match(/<head[^>]*>/i)) {
+    html = html.replace(/<head[^>]*>/i, (match) => match + "\n" + baseTag + "\n" + script);
+  } else if (html.includes('</head>')) {
+    html = html.replace(/<\/head>/i, baseTag + "\n" + script + "\n</head>");
+  } else {
+    // اگر head نبود، قبل از body
+    html = html.replace(/<body/i, baseTag + "\n" + script + "\n<body");
+  }
+  
+  return html;
+}
+
+function rewriteCss(css, proxyOrigin, targetUrl) {
+  const targetOrigin = targetUrl.origin;
+  
+  // بازنویسی url() در CSS با http/https
+  css = css.replace(/url\((["']?)(https?:\/\/[^)"']+)(["']?)\)/gi, (match, q1, url, q2) => {
+    return `url(${q1}${proxyOrigin}/${url}${q2})`;
+  });
+  
+  // بازنویسی url() با //
+  css = css.replace(/url\((["']?)(\/\/[^)"']+)(["']?)\)/gi, (match, q1, url, q2) => {
+    return `url(${q1}${proxyOrigin}/https:${url}${q2})`;
+  });
+  
+  // بازنویسی url() با /
+  css = css.replace(/url\((["']?)(\/[^)"']+)(["']?)\)/gi, (match, q1, path, q2) => {
+    if (path.startsWith("//")) return match;
+    return `url(${q1}${proxyOrigin}/${targetOrigin}${path}${q2})`;
+  });
+  
+  // بازنویسی @import
+  css = css.replace(/@import\s+(["'])(https?:\/\/[^"']+)(["'])/gi, (match, q1, url, q2) => {
+    return `@import ${q1}${proxyOrigin}/${url}${q2}`;
+  });
+  
+  return css;
+}
+
+function rewriteJs(js, proxyOrigin, targetUrl) {
+  const targetOrigin = targetUrl.origin;
+  
+  // بازنویسی محافظه‌کارانه URLها در JavaScript
+  try {
+    // بازنویسی URLهای با کوتیشن دوتایی
+    js = js.replace(/"(https?:\/\/[^"]+)"/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `"${proxyOrigin}/${url}"`;
+    });
+    
+    // بازنویسی URLهای با کوتیشن تکی
+    js = js.replace(/'(https?:\/\/[^']+)'/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `'${proxyOrigin}/${url}'`;
+    });
+    
+    // بازنویسی URLهای با backtick
+    js = js.replace(/`(https?:\/\/[^`]+)`/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `\`${proxyOrigin}/${url}\``;
+    });
+  } catch (e) {
+    // در صورت خطا، JavaScript را بدون تغییر برگردان
+    console.error('Error rewriting JS:', e);
+  }
+  
+  return js;
 }
