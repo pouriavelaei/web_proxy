@@ -29,9 +29,30 @@ export default {
       } else if (pathUrl.length > 0 && pathUrl.includes(".")) {
         targetUrl = "https://" + pathUrl;
       } else {
-        return new Response(getHomePage(), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
+        // اگر مسیر نسبی است، سعی می‌کنیم از Referer استفاده کنیم
+        const referer = request.headers.get("Referer");
+        if (referer && referer.includes(proxyOrigin)) {
+          try {
+            // استخراج سایت مقصد از referer
+            const refMatch = referer.match(/https?:\/\/[^/]+\/+(https?:\/\/[^/]+)/);
+            if (refMatch && refMatch[1]) {
+              const refTargetOrigin = refMatch[1];
+              targetUrl = refTargetOrigin + url.pathname + url.search;
+            } else {
+              return new Response(getHomePage(), {
+                headers: { "Content-Type": "text/html; charset=utf-8" },
+              });
+            }
+          } catch (e) {
+            return new Response(getHomePage(), {
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            });
+          }
+        } else {
+          return new Response(getHomePage(), {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
       }
     }
     
@@ -946,6 +967,24 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   const targetOrigin = "${targetOrigin}";
   const targetHost = "${targetHost}";
   
+  // تابع استخراج URL واقعی از پراکسی URL
+  function getRealCurrentUrl() {
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    const currentHash = window.location.hash;
+    
+    // حذف اسلش‌های اضافی از اول
+    const cleanPath = currentPath.replace(/^\\/+/, '');
+    
+    // اگر با http شروع می‌شود، URL کامل است
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      return cleanPath + currentSearch + currentHash;
+    }
+    
+    // در غیر این صورت، باید نسبت به targetOrigin باشد
+    return targetOrigin + '/' + cleanPath + currentSearch + currentHash;
+  }
+  
   // تابع بازنویسی URL
   function rewriteUrl(url) {
     if (!url || typeof url !== 'string') return url;
@@ -965,7 +1004,7 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
       return proxyOrigin + '/https:' + url;
     }
     
-    // مسیر مطلق
+    // مسیر مطلق - باید نسبت به targetOrigin حل شود
     if (url.startsWith('/')) {
       return proxyOrigin + '/' + targetOrigin + url;
     }
@@ -975,23 +1014,16 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
       return url;
     }
     
-    // مسیرهای نسبی (بدون /)
-    // در این صورت باید نسبت به URL فعلی حل شوند
+    // مسیرهای نسبی (بدون /) - باید نسبت به URL فعلی حل شوند
     if (url.length > 0 && !url.includes(':')) {
-      const currentPath = window.location.pathname;
-      const currentPathParts = currentPath.split('/');
-      
-      // حذف آخرین قسمت (نام فایل فعلی)
-      currentPathParts.pop();
-      
-      // اضافه کردن مسیر نسبی
-      const basePath = currentPathParts.join('/');
-      if (basePath.includes(targetOrigin)) {
-        // استخراج مسیر بعد از targetOrigin
-        const parts = basePath.split(targetOrigin);
-        if (parts.length > 1) {
-          return proxyOrigin + '/' + targetOrigin + parts[1] + '/' + url;
-        }
+      try {
+        const realCurrentUrl = getRealCurrentUrl();
+        const currentUrl = new URL(realCurrentUrl);
+        const resolvedUrl = new URL(url, currentUrl.href);
+        return proxyOrigin + '/' + resolvedUrl.toString();
+      } catch (e) {
+        // در صورت خطا، به روش قدیمی
+        return proxyOrigin + '/' + targetOrigin + '/' + url;
       }
     }
     
@@ -1039,7 +1071,13 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   const originalLocationSetter = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href').set;
   Object.defineProperty(window.Location.prototype, 'href', {
     set: function(url) {
-      return originalLocationSetter.call(this, rewriteUrl(url));
+      // اگر URL مسیری نسبی است، باید نسبت به سایت واقعی حل شود
+      if (url && typeof url === 'string' && !url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = rewriteUrl(url);
+      } else if (url && typeof url === 'string' && url.startsWith('http') && !url.startsWith(proxyOrigin)) {
+        url = proxyOrigin + '/' + url;
+      }
+      return originalLocationSetter.call(this, url);
     }
   });
   
@@ -1112,33 +1150,20 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     const form = e.target;
     let action = form.getAttribute('action');
     
-    // اگر action خالی یا null باشد، به URL فعلی ارسال می‌شود
+    // اگر action خالی یا null باشد
     if (!action || action === '' || action === '#') {
-      // برای فرم‌های GET، از pathname فعلی استفاده می‌کنیم
-      if (form.method && form.method.toUpperCase() === 'GET') {
-        // استخراج URL واقعی از پراکسی URL
-        const currentPath = window.location.pathname;
-        const currentSearch = window.location.search;
-        const realUrl = currentPath.replace(/^\/+/, '');
-        
-        if (realUrl.startsWith('http://') || realUrl.startsWith('https://')) {
-          try {
-            const targetUrl = new URL(realUrl);
-            // استفاده از pathname واقعی سایت مقصد
-            action = targetOrigin + targetUrl.pathname;
-          } catch (e) {
-            action = window.location.href.split('?')[0];
-          }
-        } else {
-          action = window.location.href.split('?')[0];
-        }
-      } else {
-        action = window.location.href.split('?')[0];
+      // از URL واقعی فعلی استفاده می‌کنیم
+      const realUrl = getRealCurrentUrl();
+      try {
+        const currentUrl = new URL(realUrl);
+        action = currentUrl.origin + currentUrl.pathname;
+      } catch (e) {
+        action = targetOrigin + '/';
       }
     }
     
     if (!action.startsWith(proxyOrigin)) {
-      // بازنویسی action برای فرم‌های معمولی
+      // بازنویسی action
       const rewrittenAction = rewriteUrl(action);
       form.setAttribute('action', rewrittenAction);
       form.action = rewrittenAction;
@@ -1151,22 +1176,12 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
     let action = this.getAttribute('action');
     
     if (!action || action === '' || action === '#') {
-      if (this.method && this.method.toUpperCase() === 'GET') {
-        const currentPath = window.location.pathname;
-        const realUrl = currentPath.replace(/^\/+/, '');
-        
-        if (realUrl.startsWith('http://') || realUrl.startsWith('https://')) {
-          try {
-            const targetUrl = new URL(realUrl);
-            action = targetOrigin + targetUrl.pathname;
-          } catch (e) {
-            action = window.location.href.split('?')[0];
-          }
-        } else {
-          action = window.location.href.split('?')[0];
-        }
-      } else {
-        action = window.location.href.split('?')[0];
+      const realUrl = getRealCurrentUrl();
+      try {
+        const currentUrl = new URL(realUrl);
+        action = currentUrl.origin + currentUrl.pathname;
+      } catch (e) {
+        action = targetOrigin + '/';
       }
     }
     
@@ -1200,6 +1215,45 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
       existingBase.setAttribute('href', rewriteUrl(baseHref));
     }
   }
+  
+  // مکانیزم امنیتی: چک کردن URL و تصحیح در صورت اشتباه
+  let lastCheckedUrl = window.location.href;
+  let correctionAttempts = 0;
+  const maxCorrectionAttempts = 3;
+  
+  const urlChecker = setInterval(function() {
+    const currentUrl = window.location.href;
+    
+    // اگر URL تغییر کرده
+    if (currentUrl !== lastCheckedUrl) {
+      lastCheckedUrl = currentUrl;
+      correctionAttempts = 0; // ریست کردن تلاش‌ها
+      
+      // چک کنیم که آیا به درستی با پراکسی شروع می‌شود
+      if (currentUrl.startsWith(proxyOrigin + '/')) {
+        const pathPart = currentUrl.substring(proxyOrigin.length + 1);
+        
+        // اگر pathPart از با http شروع نمی‌شود، یعنی مشکل داریم
+        // مثلا: /results?search_query=test بجای /https://www.youtube.com/results
+        if (pathPart && !pathPart.startsWith('http://') && !pathPart.startsWith('https://')) {
+          // استثناها: مسیرهای خاص پراکسی
+          if (pathPart.startsWith('search?') || pathPart === '') {
+            return; // این مسیرهای معتبر پراکسی هستند
+          }
+          
+          if (correctionAttempts < maxCorrectionAttempts) {
+            correctionAttempts++;
+            const correctUrl = proxyOrigin + '/' + targetOrigin + '/' + pathPart;
+            console.warn('[Proxy] Correcting URL:', currentUrl, '->', correctUrl);
+            window.location.replace(correctUrl);
+          } else {
+            // بعد از 3 تلاش، متوقف می‌کنیم
+            clearInterval(urlChecker);
+          }
+        }
+      }
+    }
+  }, 150);
 })();
 </script>`;
   
