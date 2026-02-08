@@ -1,5 +1,4 @@
 // Web Proxy Worker for Cloudflare
-const PROXY_PREFIX = '/proxy/';
 
 export default {
   async fetch(request, env, ctx) {
@@ -11,14 +10,41 @@ export default {
     }
     
     // صفحه اصلی
-    if (url.pathname === '/' && !url.searchParams.has('url')) {
+    if (url.pathname === '/' && !url.searchParams.has('url') && !url.pathname.startsWith('/proxy/')) {
       return new Response(getHomePage(), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
     
     // استخراج URL مقصد
-    let targetUrl = url.searchParams.get('url');
+    let targetUrl = null;
+    let targetBase = null;
+    
+    // روش جدید: /proxy/ENCODED_URL/path
+    if (url.pathname.startsWith('/proxy/')) {
+      const pathParts = url.pathname.slice(7); // حذف /proxy/
+      const firstSlash = pathParts.indexOf('/');
+      
+      if (firstSlash > 0) {
+        targetBase = decodeURIComponent(pathParts.slice(0, firstSlash));
+        const restPath = pathParts.slice(firstSlash);
+        targetUrl = targetBase + restPath + url.search;
+      } else if (pathParts) {
+        targetBase = decodeURIComponent(pathParts);
+        targetUrl = targetBase + url.search;
+      }
+    }
+    
+    // روش قدیمی: ?url=...
+    if (!targetUrl) {
+      targetUrl = url.searchParams.get('url');
+      if (targetUrl) {
+        try {
+          const parsed = new URL(targetUrl);
+          targetBase = parsed.origin;
+        } catch (e) {}
+      }
+    }
     
     if (!targetUrl) {
       return new Response(getErrorPage('لطفا URL را وارد کنید'), { 
@@ -34,6 +60,11 @@ export default {
       }
       
       const targetUrlObj = new URL(targetUrl);
+      
+      // اگر targetBase نداشتیم، از URL اصلی استخراج می‌کنیم
+      if (!targetBase) {
+        targetBase = targetUrlObj.origin;
+      }
       
       // ساخت هدرها
       const proxyHeaders = new Headers();
@@ -99,7 +130,7 @@ export default {
       
       if (contentType.includes('text/html')) {
         let html = await response.text();
-        html = rewriteHTML(html, targetUrl, url.origin);
+        html = rewriteHTML(html, targetUrl, url.origin, targetBase);
         return new Response(html, {
           status: response.status,
           statusText: response.statusText,
@@ -109,7 +140,7 @@ export default {
       
       if (contentType.includes('css')) {
         let css = await response.text();
-        css = rewriteCSS(css, targetUrl, url.origin);
+        css = rewriteCSS(css, targetUrl, url.origin, targetBase);
         return new Response(css, {
           status: response.status,
           statusText: response.statusText,
@@ -119,7 +150,7 @@ export default {
       
       if (contentType.includes('javascript')) {
         let js = await response.text();
-        js = rewriteJS(js, targetUrl, url.origin);
+        js = rewriteJS(js, targetUrl, url.origin, targetBase);
         return new Response(js, {
           status: response.status,
           statusText: response.statusText,
@@ -155,8 +186,9 @@ function handleOptions() {
 }
 
 // بازنویسی HTML
-function rewriteHTML(html, originalUrl, proxyOrigin) {
+function rewriteHTML(html, originalUrl, proxyOrigin, targetBase) {
   const baseUrl = new URL(originalUrl);
+  const encodedBase = encodeURIComponent(targetBase);
   
   const proxyUrl = (url) => {
     try {
@@ -168,32 +200,38 @@ function rewriteHTML(html, originalUrl, proxyOrigin) {
       
       let absoluteUrl;
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        absoluteUrl = url;
+        const urlObj = new URL(url);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
       } else if (url.startsWith('//')) {
-        absoluteUrl = 'https:' + url;
+        const urlObj = new URL('https:' + url);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
       } else if (url.startsWith('/')) {
-        absoluteUrl = baseUrl.origin + url;
+        return `${proxyOrigin}/proxy/${encodedBase}${url}`;
+      } else if (url.startsWith('?')) {
+        const currentPath = new URL(originalUrl).pathname;
+        return `${proxyOrigin}/proxy/${encodedBase}${currentPath}${url}`;
       } else {
-        absoluteUrl = new URL(url, originalUrl).href;
+        absoluteUrl = new URL(url, originalUrl);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(absoluteUrl.origin)}${absoluteUrl.pathname}${absoluteUrl.search}${absoluteUrl.hash}`;
       }
-      
-      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
     } catch {
       return url;
     }
   };
   
   // بازنویسی تمام attributeها
-  html = html.replace(/\b(href|src|action|data|poster|srcset)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
-    if (attr.toLowerCase() === 'srcset') {
-      const newSrcset = url.split(',').map(item => {
-        const parts = item.trim().split(/\s+/);
-        parts[0] = proxyUrl(parts[0]);
-        return parts.join(' ');
-      }).join(', ');
-      return `${attr}="${newSrcset}"`;
-    }
+  html = html.replace(/\b(href|src|action|data|poster)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
     return `${attr}="${proxyUrl(url)}"`;
+  });
+  
+  // بازنویسی srcset
+  html = html.replace(/\bsrcset\s*=\s*["']([^"']+)["']/gi, (match, srcset) => {
+    const newSrcset = srcset.split(',').map(item => {
+      const parts = item.trim().split(/\s+/);
+      parts[0] = proxyUrl(parts[0]);
+      return parts.join(' ');
+    }).join(', ');
+    return `srcset="${newSrcset}"`;
   });
   
   // بازنویسی inline styles با url()
@@ -204,25 +242,51 @@ function rewriteHTML(html, originalUrl, proxyOrigin) {
     return `style="${newStyle}"`;
   });
   
+  // اضافه کردن base tag برای navigation
+  const baseTag = `<base href="${proxyOrigin}/proxy/${encodedBase}/">`;
+  if (html.match(/<head[^>]*>/i)) {
+    html = html.replace(/<head([^>]*)>/i, `<head$1>\n${baseTag}`);
+  }
+  
   // اضافه کردن اسکریپت proxy
   const script = `
   <script>
   (function() {
     const PROXY = '${proxyOrigin}';
-    const BASE = '${baseUrl.origin}';
+    const BASE = '${targetBase}';
+    const ENCODED_BASE = '${encodedBase}';
+    
+    // تابع کمکی برای پراکسی کردن URL
+    function proxyUrl(url) {
+      if (!url || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) {
+        return url;
+      }
+      
+      try {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          const u = new URL(url);
+          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+        } else if (url.startsWith('//')) {
+          const u = new URL('https:' + url);
+          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+        } else if (url.startsWith('/')) {
+          return PROXY + '/proxy/' + ENCODED_BASE + url;
+        } else if (url.startsWith('?')) {
+          return PROXY + '/proxy/' + ENCODED_BASE + window.location.pathname.replace(/^\/proxy\/[^\/]+/, '') + url;
+        } else {
+          const currentUrl = BASE + window.location.pathname.replace(/^\/proxy\/[^\/]+/, '');
+          const u = new URL(url, currentUrl);
+          return PROXY + '/proxy/' + encodeURIComponent(u.origin) + u.pathname + u.search + u.hash;
+        }
+      } catch (e) {
+        return url;
+      }
+    }
     
     // Override fetch
     const originalFetch = window.fetch;
     window.fetch = function(url, opts) {
-      if (typeof url === 'string' && !url.startsWith('data:') && !url.startsWith('blob:')) {
-        if (url.startsWith('/') && !url.startsWith('//')) {
-          url = PROXY + '/?url=' + encodeURIComponent(BASE + url);
-        } else if (url.startsWith('http') && !url.includes(PROXY)) {
-          url = PROXY + '/?url=' + encodeURIComponent(url);
-        } else if (url.startsWith('//')) {
-          url = PROXY + '/?url=' + encodeURIComponent('https:' + url);
-        }
-      }
+      url = proxyUrl(url);
       return originalFetch(url, opts);
     };
     
@@ -230,32 +294,38 @@ function rewriteHTML(html, originalUrl, proxyOrigin) {
     const XHR = XMLHttpRequest.prototype;
     const origOpen = XHR.open;
     XHR.open = function(method, url, ...args) {
-      if (typeof url === 'string' && !url.startsWith('data:') && !url.startsWith('blob:')) {
-        if (url.startsWith('/') && !url.startsWith('//')) {
-          url = PROXY + '/?url=' + encodeURIComponent(BASE + url);
-        } else if (url.startsWith('http') && !url.includes(PROXY)) {
-          url = PROXY + '/?url=' + encodeURIComponent(url);
-        } else if (url.startsWith('//')) {
-          url = PROXY + '/?url=' + encodeURIComponent('https:' + url);
-        }
-      }
+      url = proxyUrl(url);
       return origOpen.call(this, method, url, ...args);
     };
     
     // Override window.open
-    const origOpen2 = window.open;
+    const origWindowOpen = window.open;
     window.open = function(url, ...args) {
-      if (url && typeof url === 'string' && url.startsWith('http') && !url.includes(PROXY)) {
-        url = PROXY + '/?url=' + encodeURIComponent(url);
-      }
-      return origOpen2.call(this, url, ...args);
+      if (url) url = proxyUrl(url);
+      return origWindowOpen.call(this, url, ...args);
     };
     
-    // Override document.write
-    const origWrite = document.write;
-    document.write = function(html) {
-      // ساده‌ترین حالت - فعلاً بدون تغییر
-      return origWrite.call(this, html);
+    // Override form submission
+    document.addEventListener('submit', function(e) {
+      const form = e.target;
+      if (form.action) {
+        const newAction = proxyUrl(form.action);
+        form.setAttribute('action', newAction);
+      }
+    }, true);
+    
+    // Override pushState و replaceState
+    const origPushState = history.pushState;
+    const origReplaceState = history.replaceState;
+    
+    history.pushState = function(state, title, url) {
+      if (url) url = proxyUrl(url);
+      return origPushState.call(this, state, title, url);
+    };
+    
+    history.replaceState = function(state, title, url) {
+      if (url) url = proxyUrl(url);
+      return origReplaceState.call(this, state, title, url);
     };
   })();
   </script>`;
@@ -272,8 +342,9 @@ function rewriteHTML(html, originalUrl, proxyOrigin) {
 }
 
 // بازنویسی CSS  
-function rewriteCSS(css, originalUrl, proxyOrigin) {
+function rewriteCSS(css, originalUrl, proxyOrigin, targetBase) {
   const baseUrl = new URL(originalUrl);
+  const encodedBase = encodeURIComponent(targetBase);
   
   const proxyUrl = (url) => {
     try {
@@ -282,19 +353,19 @@ function rewriteCSS(css, originalUrl, proxyOrigin) {
       }
       
       url = url.trim();
-      let absoluteUrl;
       
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        absoluteUrl = url;
+        const urlObj = new URL(url);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
       } else if (url.startsWith('//')) {
-        absoluteUrl = 'https:' + url;
+        const urlObj = new URL('https:' + url);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(urlObj.origin)}${urlObj.pathname}${urlObj.search}${urlObj.hash}`;
       } else if (url.startsWith('/')) {
-        absoluteUrl = baseUrl.origin + url;
+        return `${proxyOrigin}/proxy/${encodedBase}${url}`;
       } else {
-        absoluteUrl = new URL(url, originalUrl).href;
+        const absoluteUrl = new URL(url, originalUrl);
+        return `${proxyOrigin}/proxy/${encodeURIComponent(absoluteUrl.origin)}${absoluteUrl.pathname}${absoluteUrl.search}${absoluteUrl.hash}`;
       }
-      
-      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
     } catch {
       return url;
     }
@@ -314,9 +385,8 @@ function rewriteCSS(css, originalUrl, proxyOrigin) {
 }
 
 // بازنویسی JavaScript
-function rewriteJS(js, originalUrl, proxyOrigin) {
+function rewriteJS(js, originalUrl, proxyOrigin, targetBase) {
   // فعلاً JS رو بدون تغییر برمیگردونیم چون ممکنه کد خراب بشه
-  // اگه نیاز شد میشه URLهای خاص رو replace کرد
   return js;
 }
 
@@ -576,12 +646,12 @@ function getHomePage() {
     <div class="quick-links">
       <h3>دسترسی سریع:</h3>
       <div class="links">
-        <a href="/?url=youtube.com" class="link-btn">🎬 YouTube</a>
-        <a href="/?url=twitter.com" class="link-btn">🐦 Twitter</a>
-        <a href="/?url=instagram.com" class="link-btn">📸 Instagram</a>
-        <a href="/?url=facebook.com" class="link-btn">👥 Facebook</a>
-        <a href="/?url=reddit.com" class="link-btn">🔥 Reddit</a>
-        <a href="/?url=wikipedia.org" class="link-btn">📚 Wikipedia</a>
+        <a href="/proxy/https%3A%2F%2Fwww.youtube.com/" class="link-btn">🎬 YouTube</a>
+        <a href="/proxy/https%3A%2F%2Ftwitter.com/" class="link-btn">🐦 Twitter</a>
+        <a href="/proxy/https%3A%2F%2Fwww.instagram.com/" class="link-btn">📸 Instagram</a>
+        <a href="/proxy/https%3A%2F%2Fwww.facebook.com/" class="link-btn">👥 Facebook</a>
+        <a href="/proxy/https%3A%2F%2Fwww.reddit.com/" class="link-btn">🔥 Reddit</a>
+        <a href="/proxy/https%3A%2F%2Fwikipedia.org/" class="link-btn">📚 Wikipedia</a>
       </div>
     </div>
     
@@ -599,6 +669,27 @@ function getHomePage() {
   <script>
     // Focus on input field when page loads
     document.querySelector('input[name="url"]').focus();
+    
+    // Handle form submission
+    document.querySelector('form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      let url = document.querySelector('input[name="url"]').value.trim();
+      
+      if (!url) return;
+      
+      // اضافه کردن https اگر نداره
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      
+      try {
+        const urlObj = new URL(url);
+        const encodedOrigin = encodeURIComponent(urlObj.origin);
+        window.location.href = '/proxy/' + encodedOrigin + urlObj.pathname + urlObj.search + urlObj.hash;
+      } catch (e) {
+        alert('لطفا یک آدرس معتبر وارد کنید');
+      }
+    });
   </script>
 </body>
 </html>`;
