@@ -433,7 +433,7 @@ function getHomePage() {
     
     <form action="/" method="GET" id="proxyForm">
       <div class="input-wrapper">
-        <input type="text" name="url" id="urlInput" placeholder="google.com یا https://example.com" autocomplete="off" autofocus>
+        <input type="text" name="url" id="urlInput" placeholder="example.com یا https://site.com" autocomplete="off" autofocus>
       </div>
       <button type="submit">🚀 باز کردن سایت</button>
       <div class="hint">نیازی به نوشتن <span>https://</span> نیست</div>
@@ -442,8 +442,8 @@ function getHomePage() {
     <div class="divider"><span>یا امتحان کنید</span></div>
     
     <div class="quick-links">
-      <a href="/?url=google.com">
-        <img src="https://www.google.com/favicon.ico" alt="">Google
+      <a href="/?url=duckduckgo.com">
+        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo
       </a>
       <a href="/?url=youtube.com">
         <img src="https://www.youtube.com/favicon.ico" alt="">YouTube
@@ -451,8 +451,8 @@ function getHomePage() {
       <a href="/?url=twitter.com">
         <img src="https://abs.twimg.com/favicons/twitter.3.ico" alt="">Twitter
       </a>
-      <a href="/?url=instagram.com">
-        <img src="https://www.instagram.com/favicon.ico" alt="">Instagram
+      <a href="/?url=reddit.com">
+        <img src="https://www.reddit.com/favicon.ico" alt="">Reddit
       </a>
       <a href="/?url=wikipedia.org">
         <img src="https://www.wikipedia.org/favicon.ico" alt="">Wikipedia
