@@ -848,9 +848,9 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   };
   
   // بازنویسی XMLHttpRequest
-  const originalOpen = XMLHttpRequest.prototype.open;
+  const originalXhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    return originalOpen.call(this, method, rewriteUrl(url), ...rest);
+    return originalXhrOpen.call(this, method, rewriteUrl(url), ...rest);
   };
   
   // بازنویسی WebSocket
@@ -865,24 +865,13 @@ function rewriteHtml(html, proxyOrigin, targetUrl) {
   };
   
   // بازنویسی window.open
-  const originalOpen = window.open;
+  const originalWindowOpen = window.open;
   window.open = function(url, ...args) {
     if (url) {
       url = rewriteUrl(url);
     }
-    return originalOpen.call(this, url, ...args);
+    return originalWindowOpen.call(this, url, ...args);
   };
-  
-  // بازنویسی location
-  const originalLocationSetter = Object.getOwnPropertyDescriptor(window, 'location').set;
-  Object.defineProperty(window, 'location', {
-    set: function(url) {
-      return originalLocationSetter.call(this, rewriteUrl(url));
-    },
-    get: function() {
-      return window.location;
-    }
-  });
   
   // مدیریت کلیک روی لینک‌ها
   document.addEventListener('click', function(e) {
