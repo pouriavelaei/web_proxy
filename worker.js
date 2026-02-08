@@ -970,16 +970,29 @@ function rewriteCss(css, proxyOrigin, targetUrl) {
 function rewriteJs(js, proxyOrigin, targetUrl) {
   const targetOrigin = targetUrl.origin;
   
-  // بازنویسی URL های رشته‌ای در JavaScript
-  // این بخش محافظه‌کارانه است تا از خراب شدن کد جلوگیری شود
-  
-  // فقط URLهای کامل با http/https را بازنویسی می‌کنیم
-  js = js.replace(/(["'`])(https?:\/\/(?!${proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})[^"'`]+)(["'`])/g, 
-    (match, q1, url, q2) => {
-      // از بازنویسی URLهای داخل regex یا comment جلوگیری کن
-      return `${q1}${proxyOrigin}/${url}${q2}`;
-    }
-  );
+  // بازنویسی محافظه‌کارانه URLها در JavaScript
+  try {
+    // بازنویسی URLهای با کوتیشن دوتایی
+    js = js.replace(/"(https?:\/\/[^"]+)"/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `"${proxyOrigin}/${url}"`;
+    });
+    
+    // بازنویسی URLهای با کوتیشن تکی
+    js = js.replace(/'(https?:\/\/[^']+)'/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `'${proxyOrigin}/${url}'`;
+    });
+    
+    // بازنویسی URLهای با backtick
+    js = js.replace(/`(https?:\/\/[^`]+)`/g, (match, url) => {
+      if (url.startsWith(proxyOrigin)) return match;
+      return `\`${proxyOrigin}/${url}\``;
+    });
+  } catch (e) {
+    // در صورت خطا، JavaScript را بدون تغییر برگردان
+    console.error('Error rewriting JS:', e);
+  }
   
   return js;
 }
