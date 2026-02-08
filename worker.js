@@ -10,6 +10,13 @@ export default {
       });
     }
     
+    // صفحه جستجوی اختصاصی
+    if (url.pathname === "/search" && url.searchParams.has("q")) {
+      return new Response(getSearchPage(url.searchParams.get("q")), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+    
     // دریافت URL مقصد
     let targetUrl;
     if (url.searchParams.has("url")) {
@@ -55,73 +62,92 @@ export default {
       const isFirefox = userAgent.includes("Firefox");
       const isSafari = userAgent.includes("Safari") && !userAgent.includes("Chrome");
       
-      // هدرهای اصلی - بدون DNT که سیگنال مشکوک است
+      // مدیریت Referer - استخراج یکبار
+      const originalReferer = request.headers.get("Referer");
+      let realReferer = target.origin + "/";
+      let isFromProxy = false;
+      
+      if (originalReferer && originalReferer.includes(proxyOrigin)) {
+        isFromProxy = true;
+        const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/.+)/);
+        if (refMatch) {
+          realReferer = refMatch[1];
+        }
+      }
+      
+      // هدرهای اصلی
       headers.set("User-Agent", userAgent);
       headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
       headers.set("Accept-Language", "en-US,en;q=0.9");
       headers.set("Accept-Encoding", "gzip, deflate, br, zstd");
       headers.set("Upgrade-Insecure-Requests", "1");
-      headers.set("Cache-Control", "max-age=0");
       
-      // مدیریت Referer هوشمند
-      const originalReferer = request.headers.get("Referer");
-      if (originalReferer && originalReferer.includes(proxyOrigin)) {
-        // استخراج URL واقعی از referer پروکسی
-        const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/.+)/);
-        if (refMatch) {
-          headers.set("Referer", refMatch[1]);
-        } else {
-          headers.set("Referer", target.origin + "/");
-        }
-      } else {
-        headers.set("Referer", target.origin + "/");
+      // Cache-Control فقط برای GET
+      if (request.method === "GET") {
+        headers.set("Cache-Control", "max-age=0");
       }
       
-      // Origin فقط برای POST/PUT نیاز است
+      // Referer همیشه تنظیم می‌شود
+      headers.set("Referer", realReferer);
+      
+      // Origin فقط برای POST/PUT
       if (request.method === "POST" || request.method === "PUT") {
         headers.set("Origin", target.origin);
       }
       
-      // هدرهای مخصوص Chrome - نسخه‌های جدید
+      // هدرهای مخصوص Chrome
       if (!isFirefox && !isSafari) {
         headers.set("Sec-Ch-Ua", '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"');
         headers.set("Sec-Ch-Ua-Mobile", "?0");
         headers.set("Sec-Ch-Ua-Platform", '"Windows"');
       }
       
-      // Sec-Fetch headers - تنظیم هوشمند بر اساس نوع درخواست
-      headers.set("Sec-Fetch-Dest", "document");
-      headers.set("Sec-Fetch-Mode", "navigate");
-      
-      // برای POST (مثل فرم جستجو) باید same-origin باشد
-      if (request.method === "POST") {
+      // Sec-Fetch headers - منطق درست
+      if (request.method === "POST" || request.method === "PUT") {
+        // چک میکنیم آیا این یک form submission است یا AJAX
+        const contentType = request.headers.get("Content-Type") || "";
+        const isFormSubmit = contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data");
+        
+        if (isFormSubmit) {
+          // Form submission
+          headers.set("Sec-Fetch-Dest", "document");
+          headers.set("Sec-Fetch-Mode", "navigate");
+        } else {
+          // AJAX request
+          headers.set("Sec-Fetch-Dest", "empty");
+          headers.set("Sec-Fetch-Mode", "cors");
+        }
         headers.set("Sec-Fetch-Site", "same-origin");
         headers.set("Sec-Fetch-User", "?1");
       } else {
-        // بررسی اگر از پروکسی آمده
-        const originalReferer = request.headers.get("Referer");
-        if (originalReferer && originalReferer.includes(proxyOrigin)) {
-          // استخراج target از referer پروکسی و چک same-origin
-          const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/([^/]+))/);
-          if (refMatch && refMatch[2] === target.host) {
+        headers.set("Sec-Fetch-Dest", "document");
+        headers.set("Sec-Fetch-Mode", "navigate");
+        
+        if (isFromProxy) {
+          // چک کردن اگر referer از همان host است
+          try {
+            const refUrl = new URL(realReferer);
+            if (refUrl.host === target.host) {
+              headers.set("Sec-Fetch-Site", "same-origin");
+            } else {
+              headers.set("Sec-Fetch-Site", "cross-site");
+            }
+          } catch {
             headers.set("Sec-Fetch-Site", "same-origin");
-          } else {
-            headers.set("Sec-Fetch-Site", "same-site");
           }
-          headers.set("Sec-Fetch-User", "?1");
         } else {
           headers.set("Sec-Fetch-Site", "none");
-          headers.set("Sec-Fetch-User", "?1");
         }
+        headers.set("Sec-Fetch-User", "?1");
       }
       
-      // فوروارد کوکی‌های درخواست
+      // فوروارد Cookie
       const cookies = request.headers.get("Cookie");
       if (cookies) {
         headers.set("Cookie", cookies);
       }
       
-      // فوروارد Content-Type برای POST
+      // Content-Type برای POST/PUT
       if (request.method === "POST" || request.method === "PUT") {
         const contentType = request.headers.get("Content-Type");
         if (contentType) {
@@ -622,11 +648,11 @@ function getHomePage() {
         سرور فعال است
       </div>
       <div class="warning">
-        ⚠️ نسخه‌های HTML/Lite موتورها بهتر کار می‌کنند - از DuckDuckGo HTML یا Lite استفاده کنید
+        ⚠️ موتورهای جستجو معمولاً با پروکسی CAPTCHA می‌دهند - **مستقیماً آدرس سایت را وارد کنید**
       </div>
       <div class="info-box">
-        <strong>💡 نکته:</strong>
-        این پروکسی برای دسترسی آزاد به اینترنت طراحی شده. موتورهای جستجوی بدون CAPTCHA استفاده کنید یا مستقیماً آدرس سایت را وارد کنید.
+        <strong>💡 چرا CAPTCHA می‌دهد؟</strong>
+        IP دیتاسنتر Cloudflare و بدون Browser APIs واقعی، سایت‌های جستجو شما را به عنوان ربات شناسایی می‌کنند. برای جستجو بهتر است از Browser Extension استفاده کنید یا مستقیماً به Wikipedia.org بروید.
       </div>
     </div>
   </div>
