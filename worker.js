@@ -932,6 +932,11 @@ function getHomePage() {
     
     /* Desktop Responsive Design */
     @media (min-width: 769px) {
+      body {
+        overflow-y: auto;
+        padding: 40px 0;
+      }
+      
       .container {
         max-width: 650px;
         padding: 60px 50px;
@@ -1045,6 +1050,10 @@ function getHomePage() {
     
     /* Large Desktop */
     @media (min-width: 1200px) {
+      body {
+        padding: 50px 0;
+      }
+      
       .container {
         max-width: 750px;
         padding: 70px 60px;
@@ -1158,6 +1167,10 @@ function getHomePage() {
     
     /* Ultra Wide Desktop */
     @media (min-width: 1600px) {
+      body {
+        padding: 60px 0;
+      }
+      
       .container {
         max-width: 850px;
         padding: 80px 70px;
