@@ -36,13 +36,14 @@ export default {
     try {
       const target = new URL(targetUrl);
       
-      // لیست User-Agent های مختلف برای تنوع
+      // لیست User-Agent های جدید و واقعی (2025-2026)
       const userAgents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
       ];
       
       // ساخت هدرهای واقعی‌تر
@@ -54,39 +55,37 @@ export default {
       const isFirefox = userAgent.includes("Firefox");
       const isSafari = userAgent.includes("Safari") && !userAgent.includes("Chrome");
       
-      // هدرهای اصلی
+      // هدرهای اصلی - بدون DNT که سیگنال مشکوک است
       headers.set("User-Agent", userAgent);
-      headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
-      headers.set("Accept-Language", "en-US,en;q=0.9,fa;q=0.8");
-      headers.set("Accept-Encoding", "gzip, deflate, br");
-      headers.set("DNT", "1");
+      headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+      headers.set("Accept-Language", "en-US,en;q=0.9");
+      headers.set("Accept-Encoding", "gzip, deflate, br, zstd");
       headers.set("Upgrade-Insecure-Requests", "1");
+      headers.set("Cache-Control", "max-age=0");
       
-      // مدیریت Referer هوشمند
-      const originalReferer = request.headers.get("Referer");
-      if (originalReferer && originalReferer.includes(proxyOrigin)) {
-        // استخراج URL واقعی از referer پروکسی
-        const refererMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/.+)/);
-        if (refererMatch) {
-          headers.set("Referer", refererMatch[1]);
-        }
-      } else if (request.method === "GET") {
-        // برای درخواست‌های GET، referer را روی origin تنظیم کن
-        headers.set("Referer", target.origin + "/");
-      }
+      // مدیریت Referer هوشمند - فقط origin target
+      headers.set("Referer", target.origin + "/");
+      headers.set("Origin", target.origin);
       
-      // هدرهای مخصوص Chrome
+      // هدرهای مخصوص Chrome - نسخه‌های جدید
       if (!isFirefox && !isSafari) {
-        headers.set("Sec-Ch-Ua", '"Chromium";v="131", "Not_A Brand";v="24"');
+        headers.set("Sec-Ch-Ua", '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"');
         headers.set("Sec-Ch-Ua-Mobile", "?0");
         headers.set("Sec-Ch-Ua-Platform", '"Windows"');
       }
       
-      // Sec-Fetch headers - مهم برای جلوگیری از شناسایی
+      // Sec-Fetch headers - تنظیم هوشمند
       headers.set("Sec-Fetch-Dest", "document");
       headers.set("Sec-Fetch-Mode", "navigate");
-      headers.set("Sec-Fetch-Site", "none");
-      headers.set("Sec-Fetch-User", "?1");
+      
+      // بررسی اگر از پروکسی آمده، cross-site وگرنه none
+      const originalReferer = request.headers.get("Referer");
+      if (originalReferer && originalReferer.includes(proxyOrigin)) {
+        headers.set("Sec-Fetch-Site", "cross-site");
+      } else {
+        headers.set("Sec-Fetch-Site", "none");
+        headers.set("Sec-Fetch-User", "?1");
+      }
       
       // فوروارد کوکی‌های درخواست
       const cookies = request.headers.get("Cookie");
@@ -102,8 +101,7 @@ export default {
         }
       }
       
-      // تاخیر تصادفی برای طبیعی‌تر بودن (200-700ms)
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 500 + 200));
+      // بدون تاخیر - تاخیر مصنوعی باعث timeout و مشکلات دیگر می‌شود
       
       // درخواست به سایت مقصد
       const response = await fetch(target.toString(), {
