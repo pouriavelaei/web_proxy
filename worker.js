@@ -404,7 +404,7 @@ function getHomePage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>وب پراکسی آزاد</title>
+  <title>مثلاً فیلتر نیست</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
@@ -934,7 +934,7 @@ function getHomePage() {
 <body>
   <div class="container">
     <div class="logo">🔥</div>
-    <h1>وب پراکسی آزاد</h1>
+    <h1>مثلاً فیلتر نیست</h1>
     <p class="subtitle">به هر سایتی دسترسی داشته باشید یا جستجو کنید - سریع و امن</p>
     
     <form action="/" method="GET" id="proxyForm">
