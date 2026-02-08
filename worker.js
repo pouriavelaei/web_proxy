@@ -714,15 +714,34 @@ function getHomePage() {
   <div class="container">
     <div class="logo">🔥</div>
     <h1>وب پراکسی آزاد</h1>
-    <p class="subtitle">به هر سایتی دسترسی داشته باشید - سریع و امن</p>
+    <p class="subtitle">به هر سایتی دسترسی داشته باشید یا جستجو کنید - سریع و امن</p>
     
     <form action="/" method="GET" id="proxyForm">
       <div class="input-wrapper">
-        <input type="text" name="url" id="urlInput" placeholder="example.com یا https://site.com" autocomplete="off" autofocus>
+        <input type="text" name="url" id="urlInput" placeholder="مثلاً: example.com یا جستجو کنید..." autocomplete="off" autofocus>
       </div>
-      <button type="submit">🚀 باز کردن سایت</button>
-      <div class="hint">نیازی به نوشتن <span>https://</span> نیست</div>
+      <button type="submit">🚀 ورود یا جستجو</button>
+      <div class="hint">با <span>http://</span> یا <span>https://</span> برای سایت، بدون آن برای جستجو</div>
     </form>
+    
+    <script>
+      document.getElementById('proxyForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('urlInput');
+        let url = input.value.trim();
+        
+        if (!url) return;
+        
+        // چک کردن اینکه آیا URL با http:// یا https:// شروع میشه
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          // مستقیم به پراکسی بفرست
+          window.location.href = '/?url=' + encodeURIComponent(url);
+        } else {
+          // به موتور جستجو Mojeek بفرست
+          window.location.href = '/https://www.mojeek.com/search?q=' + encodeURIComponent(url) + '&theme=dark';
+        }
+      });
+    </script>
     
     <div class="divider"><span>موتورهای جستجو (نسخه HTML ساده)</span></div>
     
