@@ -551,29 +551,40 @@ function getHomePage() {
       <div class="hint">نیازی به نوشتن <span>https://</span> نیست</div>
     </form>
     
-    <div class="divider"><span>موتورهای جستجو پیشنهادی</span></div>
+    <div class="divider"><span>موتورهای جستجو (بدون CAPTCHA)</span></div>
     
     <div class="quick-links">
-      <a href="/?url=duckduckgo.com">
-        <img src="https://duckduckgo.com/favicon.ico" alt="">DuckDuckGo
+      <a href="/?url=searx.be">
+        <img src="https://searx.be/favicon.ico" alt="">SearXNG
       </a>
-      <a href="/?url=brave.com/search">
-        <img src="https://brave.com/static-assets/images/brave-favicon.png" alt="">Brave Search
+      <a href="/?url=search.marginalia.nu">
+        <img src="https://search.marginalia.nu/favicon.ico" alt="">Marginalia
       </a>
-      <a href="/?url=startpage.com">
-        <img src="https://www.startpage.com/favicon.ico" alt="">Startpage
+      <a href="/?url=mojeek.com">
+        <img src="https://www.mojeek.com/favicon.ico" alt="">Mojeek
       </a>
-      <a href="/?url=youtube.com">
-        <img src="https://www.youtube.com/favicon.ico" alt="">YouTube
+      <a href="/?url=wiby.me">
+        <img src="https://wiby.me/favicon.ico" alt="">Wiby
       </a>
-      <a href="/?url=twitter.com">
-        <img src="https://abs.twimg.com/favicons/twitter.3.ico" alt="">Twitter
+      <a href="/?url=yep.com">
+        <img src="https://yep.com/favicon.ico" alt="">Yep
       </a>
-      <a href="/?url=reddit.com">
-        <img src="https://www.reddit.com/favicon.ico" alt="">Reddit
-      </a>
+    </div>
+    
+    <div class="divider"><span>سایت‌های محبوب</span></div>
+    
+    <div class="quick-links">
       <a href="/?url=wikipedia.org">
         <img src="https://www.wikipedia.org/favicon.ico" alt="">Wikipedia
+      </a>
+      <a href="/?url=archive.org">
+        <img src="https://archive.org/favicon.ico" alt="">Archive.org
+      </a>
+      <a href="/?url=github.com">
+        <img src="https://github.com/favicon.ico" alt="">GitHub
+      </a>
+      <a href="/?url=stackoverflow.com">
+        <img src="https://stackoverflow.com/favicon.ico" alt="">StackOverflow
       </a>
     </div>
     
@@ -583,11 +594,11 @@ function getHomePage() {
         سرور فعال است
       </div>
       <div class="warning">
-        ⚠️ Google ممکن است CAPTCHA نشان دهد - از موتورهای جستجوی بالا استفاده کنید
+        ⚠️ Google، DuckDuckGo و اکثر موتورهای معروف CAPTCHA نشان می‌دهند - از SearXNG یا Mojeek استفاده کنید
       </div>
       <div class="info-box">
         <strong>💡 نکته:</strong>
-        این پروکسی برای دسترسی آزاد به اینترنت طراحی شده. برای بهترین نتیجه از DuckDuckGo یا Brave Search استفاده کنید.
+        این پروکسی برای دسترسی آزاد به اینترنت طراحی شده. موتورهای جستجوی بدون CAPTCHA استفاده کنید یا مستقیماً آدرس سایت را وارد کنید.
       </div>
     </div>
   </div>
