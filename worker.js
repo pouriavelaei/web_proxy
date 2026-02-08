@@ -63,9 +63,24 @@ export default {
       headers.set("Upgrade-Insecure-Requests", "1");
       headers.set("Cache-Control", "max-age=0");
       
-      // مدیریت Referer هوشمند - فقط origin target
-      headers.set("Referer", target.origin + "/");
-      headers.set("Origin", target.origin);
+      // مدیریت Referer هوشمند
+      const originalReferer = request.headers.get("Referer");
+      if (originalReferer && originalReferer.includes(proxyOrigin)) {
+        // استخراج URL واقعی از referer پروکسی
+        const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/.+)/);
+        if (refMatch) {
+          headers.set("Referer", refMatch[1]);
+        } else {
+          headers.set("Referer", target.origin + "/");
+        }
+      } else {
+        headers.set("Referer", target.origin + "/");
+      }
+      
+      // Origin فقط برای POST/PUT نیاز است
+      if (request.method === "POST" || request.method === "PUT") {
+        headers.set("Origin", target.origin);
+      }
       
       // هدرهای مخصوص Chrome - نسخه‌های جدید
       if (!isFirefox && !isSafari) {
@@ -74,17 +89,30 @@ export default {
         headers.set("Sec-Ch-Ua-Platform", '"Windows"');
       }
       
-      // Sec-Fetch headers - تنظیم هوشمند
+      // Sec-Fetch headers - تنظیم هوشمند بر اساس نوع درخواست
       headers.set("Sec-Fetch-Dest", "document");
       headers.set("Sec-Fetch-Mode", "navigate");
       
-      // بررسی اگر از پروکسی آمده، cross-site وگرنه none
-      const originalReferer = request.headers.get("Referer");
-      if (originalReferer && originalReferer.includes(proxyOrigin)) {
-        headers.set("Sec-Fetch-Site", "cross-site");
-      } else {
-        headers.set("Sec-Fetch-Site", "none");
+      // برای POST (مثل فرم جستجو) باید same-origin باشد
+      if (request.method === "POST") {
+        headers.set("Sec-Fetch-Site", "same-origin");
         headers.set("Sec-Fetch-User", "?1");
+      } else {
+        // بررسی اگر از پروکسی آمده
+        const originalReferer = request.headers.get("Referer");
+        if (originalReferer && originalReferer.includes(proxyOrigin)) {
+          // استخراج target از referer پروکسی و چک same-origin
+          const refMatch = originalReferer.match(/https?:\/\/[^/]+\/+(https?:\/\/([^/]+))/);
+          if (refMatch && refMatch[2] === target.host) {
+            headers.set("Sec-Fetch-Site", "same-origin");
+          } else {
+            headers.set("Sec-Fetch-Site", "same-site");
+          }
+          headers.set("Sec-Fetch-User", "?1");
+        } else {
+          headers.set("Sec-Fetch-Site", "none");
+          headers.set("Sec-Fetch-User", "?1");
+        }
       }
       
       // فوروارد کوکی‌های درخواست
