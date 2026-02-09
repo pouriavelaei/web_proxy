@@ -232,7 +232,7 @@ Perfect for personal use!
 <div dir="rtl">
 
 ### چرا Mojeek؟
-**جواب:** از گوگل نمی‌شد استفاده کرد (خودش فیلتر است) و Mojeek بهترین عملکرد را بین موتورهای جایگزین داشت - البته فقط برای جستجوهای انگلیسی.
+**جواب:** گوگل به دلیل داشتن کپچای پیچیده (CAPTCHA) از طریق پراکسی قابل استفاده نبود، و Mojeek بهترین عملکرد را بین موتورهای جایگزین داشت - البته فقط برای جستجوهای انگلیسی.
 
 ### آیا امن است؟
 **جواب:** کد باز است و می‌توانید خودتان بررسی کنید. اما برای کارهای حساس (بانکی، ایمیل شخصی) از VPN استفاده کنید.
@@ -246,7 +246,7 @@ Perfect for personal use!
 </div>
 
 ### Why Mojeek?
-**Answer:** Couldn't use Google (it's filtered itself), and Mojeek had the best performance among alternative search engines - though only for English queries.
+**Answer:** Google couldn't be used due to its complex CAPTCHA system, and Mojeek had the best performance among alternative search engines - though only for English queries.
 
 ### Is it secure?
 **Answer:** The code is open-source and you can review it yourself. However, for sensitive tasks (banking, personal email), use a VPN.
