@@ -112,7 +112,7 @@ User Request → Cloudflare Worker → Target Website
 
 **ویژگی‌های فنی:**
 - بازنویسی HTML، CSS و JavaScript به صورت داینامیک
-- مدیریت پایه کوکی‌ها (با محدودیت‌هایی برای سایت‌های پیچیده)
+- Forward کردن کوکی‌ها (بدون ذخیره‌سازی - محدودیت برای سایت‌های وابسته به Session)
 - پشتیبانی از ریدایرکت‌ها و URL های نسبی
 - شبیه‌سازی هدرهای مرورگر واقعی
 - مدیریت فرم‌ها و POST request ها
@@ -121,7 +121,7 @@ User Request → Cloudflare Worker → Target Website
 
 **Technical Features:**
 - Dynamic HTML, CSS, and JavaScript rewriting
-- Basic cookie management (limited for complex sites)
+- Cookie forwarding (no persistence - limited for session-dependent sites)
 - Support for redirects and relative URLs
 - Real browser header simulation
 - Form and POST request handling
