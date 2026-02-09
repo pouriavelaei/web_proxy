@@ -16,7 +16,7 @@ An ultra-lightweight and experimental web proxy built on **Cloudflare Workers**.
 
 ![Web Proxy Screenshot](https://github.com/pouriavelaei/web_proxy/blob/main/screenshot.png?raw=true)
 
-*رابط کاربری ساده و کاربردی با پشتیبانی کامل از زبان فارسی*
+
 
 </div>
 
