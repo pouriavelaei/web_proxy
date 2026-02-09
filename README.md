@@ -265,13 +265,35 @@ Perfect for personal use!
 
 این پروژه تحت لایسنس **GNU GPL v3** منتشر شده است. برای جزئیات بیشتر فایل [LICENSE](LICENSE) را مطالعه کنید.
 
+**کپی‌رایت:** © 2026 [پوریا ولایی](https://github.com/pouriavelaei) - تمامی حقوق با رعایت شرایط GPL v3 محفوظ است.
+
 </div>
 
 This project is released under the **GNU GPL v3** license. See the [LICENSE](LICENSE) file for details.
 
+**Copyright:** © 2026 [Pouria Velaei](https://github.com/pouriavelaei) - All rights reserved under GPL v3 terms.
+
 ---
 
-## 🙏 تشکر | Acknowledgments
+## �‍💻 توسعه‌دهنده | Developer
+
+<div dir="rtl">
+
+**پوریا ولایی**
+
+- 🐙 **گیتهاب:** [github.com/pouriavelaei](https://github.com/pouriavelaei)
+- 📢 **کانال تلگرام:** [PythonFarsi2024](https://t.me/PythonFarsi2024)
+
+</div>
+
+**Pouria Velaei**
+
+- 🐙 **GitHub:** [github.com/pouriavelaei](https://github.com/pouriavelaei)
+- 📢 **Telegram Channel:** [PythonFarsi2024](https://t.me/PythonFarsi2024)
+
+---
+
+## �🙏 تشکر | Acknowledgments
 
 <div dir="rtl">
 
@@ -289,8 +311,11 @@ This project is released under the **GNU GPL v3** license. See the [LICENSE](LIC
 
 <div align="center" dir="rtl">
 
-**ساخته شده با ☕ و کنجکاوی فنی**
+**ساخته شده با ☕ و کنجکاوی فنی | Made with ☕ and technical curiosity**
 
-**Made with ☕ and technical curiosity**
+© 2026 [Pouria Velaei](https://github.com/pouriavelaei) | Licensed under GNU GPL v3
+
+[![GitHub](https://img.shields.io/badge/GitHub-pouriavelaei-181717?style=flat&logo=github)](https://github.com/pouriavelaei)
+[![Telegram](https://img.shields.io/badge/Telegram-PythonFarsi2024-26A5E4?style=flat&logo=telegram)](https://t.me/PythonFarsi2024)
 
 </div>
