@@ -120,57 +120,159 @@ User Request → Cloudflare Worker → Target Website
 
 <div dir="rtl">
 
-### پیش‌نیازها
+### 🚀 روش 1: استقرار از طریق GitHub (توصیه می‌شود)
 
-- حساب [Cloudflare](https://cloudflare.com) (رایگان)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) نصب شده
+**گام 1:** حساب رایگان [Cloudflare](https://dash.cloudflare.com/sign-up) بسازید
 
-> **نکته:** این پروژه بدون هیچ dependency خارجی است - فقط یک فایل JavaScript خالص!
+**گام 2:** این repository را Fork کنید
+- روی دکمه **Fork** در بالای صفحه کلیک کنید
+- یا مستقیماً از repository من استفاده کنید
 
-### مراحل نصب
+**گام 3:** در Cloudflare Dashboard:
+- به بخش **Workers & Pages** بروید
+- روی **Create Application** کلیک کنید
+- تب **Pages** را انتخاب کنید
+- **Connect to Git** → GitHub را انتخاب کنید
+- اگر اولین بار است، اجازه دسترسی به GitHub بدهید
+- Repository فورک شده (یا `pouriavelaei/web_proxy`) را انتخاب کنید
+- **Begin setup** کلیک کنید
 
-1. **کلون کردن پروژه:**
-```bash
-git clone <repository-url>
-cd web_proxy
-```
+**گام 4:** تنظیمات Build:
+- **Framework preset:** None
+- **Build command:** خالی بگذارید
+- **Build output directory:** `/`
+- **Root directory:** `/`
 
-2. **تنظیم Wrangler:**
-```bash
-npx wrangler login
-```
+**گام 5:** روی **Save and Deploy** کلیک کنید
 
-3. **ویرایش تنظیمات** در فایل `wrangler.jsonc` (در صورت نیاز):
+✅ **تمام!** پراکسی شما آماده است: `https://web-proxy.pages.dev`
+
+هر بار که تغییری در GitHub بدهید، خودکار deploy می‌شود! 🔄
+
+---
+
+### 🔧 روش 2: استقرار مستقیم کد (بدون Git)
+
+اگر نمی‌خواهید از GitHub استفاده کنید:
+
+**گام 1-2:** حساب Cloudflare بسازید و به **Workers & Pages** بروید
+
+**گام 3:** **Create Worker** را انتخاب کنید
+
+**گام 4:** 
+- روی **Quick Edit** کلیک کنید
+- کد موجود را پاک کنید
+- محتوای [`worker.js`](https://raw.githubusercontent.com/pouriavelaei/web_proxy/main/worker.js) را کپی کنید
+- در ویرایشگر Paste کنید
+- **Save and Deploy** کلیک کنید
+
+✅ **آماده است:** `https://your-worker.your-subdomain.workers.dev`
+
+> ⚠️ **توجه:** با این روش باید تغییرات را دستی اعمال کنید.
+
+---
+
+### ⚙️ تنظیمات اختیاری
+
+**تغییر نام:**
+- Settings → General → Rename
+
+**افزودن دامنه سفارشی:**
+- Settings → Triggers → Add Custom Domain
+
+**مشاهده لاگ‌ها:**
+- بخش **Logs** در داشبورد Worker
+
+**⚠️ نکته مهم برای روش GitHub:**
+اگر از روش 1 استفاده کردید، فایل `wrangler.jsonc` را ویرایش کنید و `name` را با نام Worker که در Cloudflare ساختید یکسان کنید:
+
 ```jsonc
 {
-    "name": "your-proxy-name",
+    "name": "your-worker-name",  // همان نامی که در Cloudflare انتخاب کردید
     "main": "worker.js",
     "compatibility_date": "2026-02-08"
 }
 ```
 
-4. **تست در محیط محلی:**
-```bash
-npx wrangler dev
-```
-
-5. **انتشار روی Cloudflare:**
-```bash
-npx wrangler deploy
-```
+این کار برای عملکرد صحیح ضروری نیست، اما برای مدیریت بهتر توصیه می‌شود.
 
 </div>
 
-### Prerequisites
+### 🚀 Method 1: Deploy via GitHub (Recommended)
 
-- [Cloudflare](https://cloudflare.com) account (free)
-- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) installed
+**Step 1:** Create a free [Cloudflare](https://dash.cloudflare.com/sign-up) account
 
-> **Note:** This project has zero external dependencies - just pure JavaScript!
+**Step 2:** Fork this repository
+- Click the **Fork** button at the top
+- Or use my repository directly
 
-### Installation Steps
+**Step 3:** In Cloudflare Dashboard:
+- Go to **Workers & Pages**
+- Click **Create Application**
+- Select **Pages** tab
+- **Connect to Git** → Select GitHub
+- Grant access if first time
+- Select your forked repo (or `pouriavelaei/web_proxy`)
+- Click **Begin setup**
 
-Follow the Persian instructions above or refer to [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/).
+**Step 4:** Build Settings:
+- **Framework preset:** None
+- **Build command:** leave empty
+- **Build output directory:** `/`
+- **Root directory:** `/`
+
+**Step 5:** Click **Save and Deploy**
+
+✅ **Done!** Your proxy is live: `https://web-proxy.pages.dev`
+
+Auto-deploys on every Git push! 🔄
+
+---
+
+### 🔧 Method 2: Direct Code Deploy (Without Git)
+
+If you don't want to use GitHub:
+
+**Step 1-2:** Create Cloudflare account and go to **Workers & Pages**
+
+**Step 3:** Select **Create Worker**
+
+**Step 4:**
+- Click **Quick Edit**
+- Delete existing code
+- Copy content from [`worker.js`](https://raw.githubusercontent.com/pouriavelaei/web_proxy/main/worker.js)
+- Paste in editor
+- Click **Save and Deploy**
+
+✅ **Ready:** `https://your-worker.your-subdomain.workers.dev`
+
+> ⚠️ **Note:** Manual updates required with this method.
+
+---
+
+### ⚙️ Optional Settings
+
+**Rename:**
+- Settings → General → Rename
+
+**Add Custom Domain:**
+- Settings → Triggers → Add Custom Domain
+
+**View Logs:**
+- **Logs** section in Worker dashboard
+
+**⚠️ Important Note for GitHub Method:**
+If you used Method 1, edit `wrangler.jsonc` and match the `name` with your Worker name in Cloudflare:
+
+```jsonc
+{
+    "name": "your-worker-name",  // same name you chose in Cloudflare
+    "main": "worker.js",
+    "compatibility_date": "2026-02-08"
+}
+```
+
+Not required for functionality, but recommended for better management.
 
 ---
 
